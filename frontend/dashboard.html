@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Dov-tek</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2300d4a0'/><stop offset='1' stop-color='%2300b98a'/></linearGradient></defs><rect width='32' height='32' rx='6' fill='url(%23g)'/><text x='16' y='22' text-anchor='middle' font-family='sans-serif' font-weight='800' font-size='13' fill='%23060810'>DT</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/global.css">
+<style>
+.container{max-width:900px;margin:100px auto 60px;padding:0 24px}
+.dash-hello{font-size:28px;font-weight:800;margin-bottom:4px}
+.dash-hello .accent{color:var(--teal)}
+.dash-sub{font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.08em;margin-bottom:28px}
+.dash-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:36px}
+@media(max-width:600px){.dash-cards{grid-template-columns:1fr 1fr}}
+.dash-card{background:var(--card);border:1px solid var(--border);padding:20px;border-radius:var(--radius-md)}
+.dash-card-num{font-size:32px;font-weight:800;line-height:1;margin-bottom:6px}
+.dash-card-label{font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase}
+.history-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.history-label{font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase}
+.scan-list{display:flex;flex-direction:column;gap:2px}
+.scan-row{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);transition:background 0.2s}
+.scan-row:hover{background:var(--card-hover)}
+.sdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.sdot.h{background:#ff4757}.sdot.m{background:#f59e0b}.sdot.l{background:var(--teal)}
+.scan-info{flex:1;min-width:0}
+.scan-band{font-size:13px;font-weight:600;margin-bottom:2px}
+.scan-band.h{color:#ff4757}.scan-band.m{color:#f59e0b}.scan-band.l{color:var(--teal)}
+.scan-msg{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:400px}
+.scan-meta{font-family:var(--font-mono);font-size:10px;color:var(--dim);margin-top:2px}
+.scan-score{font-weight:800;font-size:16px;flex-shrink:0}
+.scan-score.h{color:#ff4757}.scan-score.m{color:#f59e0b}.scan-score.l{color:var(--teal)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty-state-icon{font-size:48px;margin-bottom:16px}
+.empty-state-text{font-size:15px;margin-bottom:24px;color:var(--warm)}
+.loading{text-align:center;padding:40px;color:var(--muted);font-family:var(--font-mono);font-size:12px}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <a class="nav-brand" href="/"><span class="nav-brand-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><circle cx="12" cy="11" r="3" fill="currentColor"></circle></svg></span>Dov<span class="accent">-tek</span></a>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/scan">Scan</a></li>
+    <li><a href="/dashboard" class="active">Dashboard</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a class="btn-ghost" href="#" onclick="logout()">Logout</a>
+  </div>
+  <button class="nav-hamburger" onclick="document.getElementById('mobileNav').classList.toggle('open');this.classList.toggle('open')"><span></span><span></span><span></span></button>
+</nav>
+<div class="nav-mobile" id="mobileNav">
+  <a href="/">Home</a><a href="/scan">Scan</a><a href="/dashboard">Dashboard</a><a href="#" onclick="logout()">Logout</a>
+</div>
+
+<div class="container">
+  <div class="dash-hello">Welcome back, <span class="accent" id="userName">User</span> 👋</div>
+  <div class="dash-sub" id="dashSub">Loading your scan history...</div>
+
+  <div class="dash-cards">
+    <div class="dash-card"><div class="dash-card-num" id="totalScans" style="color:var(--white)">—</div><div class="dash-card-label">Total Scans</div></div>
+    <div class="dash-card"><div class="dash-card-num" id="highRisk" style="color:#ff4757">—</div><div class="dash-card-label">High Risk Caught</div></div>
+    <div class="dash-card"><div class="dash-card-num" id="safeCount" style="color:var(--teal)">—</div><div class="dash-card-label">Safe Messages</div></div>
+  </div>
+
+  <div class="history-header">
+    <div class="history-label">Scan History</div>
+    <a class="btn btn-primary btn-sm" href="/scan">+ New Scan</a>
+  </div>
+
+  <div class="scan-list" id="scanList">
+    <div class="loading" id="loadingState">Loading scans...</div>
+  </div>
+
+  <div class="empty-state" id="emptyState" style="display:none">
+    <div class="empty-state-icon">🛡️</div>
+    <div class="empty-state-text">No scans yet. Try scanning your first message!</div>
+    <a class="btn btn-primary btn-md" href="/scan">Scan a Message</a>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div><div class="footer-brand">Dov<span class="accent">-tek</span></div><div class="footer-tag">AI Fraud Detection · Global</div></div>
+    <div class="footer-bottom"><div class="footer-note">🔒 Privacy-first · No message content ever stored</div><div class="footer-note">© 2026 Dov-tek Technologies</div></div>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API='';
+const token=localStorage.getItem('dovtek_token');
+
+if(!token){window.location.href='/';}
+
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
+function logout(){localStorage.removeItem('dovtek_token');localStorage.removeItem('dovtek_user');window.location.href='/'}
+
+async function loadDashboard(){
+  const headers={'Authorization':'Bearer '+token};
+  try{
+    // Get user info
+    const userResp=await fetch(API+'/auth/me',{headers});
+    if(!userResp.ok){logout();return}
+    const user=await userResp.json();
+    document.getElementById('userName').textContent=user.full_name || user.email.split('@')[0];
+
+    // Get scan history
+    const histResp=await fetch(API+'/scans/history?page_size=50',{headers});
+    if(!histResp.ok)throw new Error('Failed to load history');
+    const hist=await histResp.json();
+
+    document.getElementById('loadingState').style.display='none';
+
+    const scans=hist.scans||[];
+    document.getElementById('totalScans').textContent=hist.total;
+    document.getElementById('highRisk').textContent=scans.filter(s=>s.risk_level==='HIGH').length;
+    document.getElementById('safeCount').textContent=scans.filter(s=>s.risk_level==='LOW').length;
+    document.getElementById('dashSub').textContent=hist.total+' total scans · Your data is private';
+
+    if(scans.length===0){
+      document.getElementById('emptyState').style.display='block';
+      return;
+    }
+
+    const list=document.getElementById('scanList');
+    list.innerHTML='';
+    scans.forEach(s=>{
+      const cls=s.risk_level==='HIGH'?'h':s.risk_level==='MEDIUM'?'m':'l';
+      const date=new Date(s.scanned_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      list.innerHTML+=`
+        <div class="scan-row">
+          <div class="sdot ${cls}"></div>
+          <div class="scan-info">
+            <div class="scan-band ${cls}">${s.risk_level} Risk</div>
+            <div class="scan-msg">${s.summary||s.message.substring(0,80)}</div>
+            <div class="scan-meta">${date}</div>
+          </div>
+          <div class="scan-score ${cls}">${s.risk_score}</div>
+        </div>`;
+    });
+  }catch(e){
+    document.getElementById('loadingState').textContent='Failed to load: '+e.message;
+    showToast(e.message);
+  }
+}
+
+loadDashboard();
+window.addEventListener('scroll',()=>{document.querySelector('.nav').classList.toggle('scrolled',window.scrollY>20)});
+</script>
+</body>
+</html>

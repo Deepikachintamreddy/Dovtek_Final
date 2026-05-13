@@ -22,6 +22,7 @@ class ScanResult(BaseModel):
 # ── Auth Models ──────────────────────────────────────────────────────────────
  
 class RegisterRequest(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=100)
     email: EmailStr
     password: str = Field(..., min_length=8, description="Minimum 8 characters")
  
@@ -31,6 +32,7 @@ class LoginRequest(BaseModel):
  
 class UserOut(BaseModel):
     id: int
+    full_name: str
     email: str
     created_at: datetime
  

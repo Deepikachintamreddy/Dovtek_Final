@@ -17,6 +17,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
  
     user = db_models.User(
+        full_name=body.full_name,
         email=body.email,
         password_hash=hash_password(body.password),
     )
@@ -27,7 +28,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
     token = create_access_token(user.id, user.email)
     return AuthResponse(
         token=token,
-        user=UserOut(id=user.id, email=user.email, created_at=user.created_at),
+        user=UserOut(id=user.id, full_name=user.full_name, email=user.email, created_at=user.created_at),
     )
  
  
@@ -40,7 +41,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     token = create_access_token(user.id, user.email)
     return AuthResponse(
         token=token,
-        user=UserOut(id=user.id, email=user.email, created_at=user.created_at),
+        user=UserOut(id=user.id, full_name=user.full_name, email=user.email, created_at=user.created_at),
     )
  
  
@@ -54,6 +55,7 @@ def logout(current_user: db_models.User = Depends(get_current_user)):
 def me(current_user: db_models.User = Depends(get_current_user)):
     return UserOut(
         id=current_user.id,
+        full_name=current_user.full_name,
         email=current_user.email,
         created_at=current_user.created_at,
     )
