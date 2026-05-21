@@ -32,20 +32,40 @@
 .btn-scan{width:100%;padding:16px;background:var(--gradient-primary);color:var(--black);border:none;border-radius:var(--radius-md);font-family:var(--font-heading);font-weight:700;font-size:15px;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 20px rgba(0,212,160,0.25)}
 .btn-scan:hover{transform:translateY(-1px);box-shadow:0 8px 30px rgba(0,212,160,0.35)}
 .btn-scan:disabled{opacity:0.6;cursor:not-allowed;transform:none}
-.result-card{display:none;margin-top:32px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;animation:fade-up 0.5s var(--ease-out)}
-.result-header{padding:20px 24px;display:flex;justify-content:space-between;align-items:center}
-.res-level{font-family:var(--font-mono);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em}
-.res-score{font-family:var(--font-heading);font-size:48px;font-weight:800;line-height:1}
-.result-body{padding:0 24px 24px}
-.res-bar{height:6px;background:var(--border);border-radius:3px;margin-bottom:20px;overflow:hidden}
-.res-bar-fill{height:100%;border-radius:3px;transition:width 1s var(--ease-out)}
-.res-summary{font-size:16px;line-height:1.7;color:var(--off-white);margin-bottom:24px}
-.res-reasons{list-style:none;display:flex;flex-direction:column;gap:12px;margin-bottom:24px}
-.res-reason{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--warm);line-height:1.6}
-.res-reason-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:7px}
-.res-action{padding:16px 20px;border-radius:var(--radius-md);border-left:4px solid var(--teal);background:var(--teal-dim)}
+.result-card{display:none;margin-top:32px;background:#07111f;border:1px solid rgba(0,212,160,0.18);border-radius:8px;overflow:hidden;animation:fade-up 0.5s var(--ease-out);box-shadow:0 24px 70px rgba(0,0,0,0.55)}
+.result-card.high{border-color:rgba(255,71,87,0.45);box-shadow:0 0 0 1px rgba(255,71,87,0.08),0 24px 70px rgba(0,0,0,0.55)}
+.result-card.medium{border-color:rgba(245,158,11,0.42)}
+.result-card.low{border-color:rgba(0,212,160,0.34)}
+.result-topline{height:3px;background:var(--teal)}
+.result-card.high .result-topline{background:var(--red)}
+.result-card.medium .result-topline{background:var(--amber)}
+.result-header{padding:18px 20px 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:18px;border-bottom:1px solid rgba(255,255,255,0.06)}
+.result-verdict{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px}
+.res-level{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;padding:5px 10px;border-radius:999px;background:rgba(0,212,160,0.12);color:var(--teal)}
+.res-level::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 16px currentColor}
+.res-action-pill{display:inline-flex;align-items:center;font-family:var(--font-mono);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;padding:5px 10px;border-radius:999px;background:rgba(0,212,160,0.1);color:var(--teal);border:1px solid rgba(0,212,160,0.25)}
+.res-summary{font-size:15px;line-height:1.65;color:var(--off-white);margin:0;max-width:620px}
+.res-score-wrap{text-align:right;flex-shrink:0;min-width:92px}
+.res-score{font-family:var(--font-heading);font-size:46px;font-weight:800;line-height:0.95;color:var(--teal)}
+.res-score-total{font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:0.08em;margin-top:6px}
+.result-body{padding:18px 20px 20px}
+.res-bar{height:5px;background:rgba(255,255,255,0.08);border-radius:999px;margin-bottom:18px;overflow:hidden}
+.res-bar-fill{height:100%;border-radius:999px;transition:width 1s var(--ease-out)}
+.res-reasons{list-style:none;display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.res-reason{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--warm);line-height:1.55;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.035);border-radius:6px;padding:10px 12px}
+.res-reason-num{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;font-family:var(--font-mono);font-size:10px;font-weight:800;background:rgba(0,212,160,0.12);color:var(--teal)}
+.res-action{padding:14px 16px;border-radius:6px;border:1px solid rgba(0,212,160,0.18);background:rgba(0,151,214,0.08)}
 .res-action-label{font-family:var(--font-mono);font-size:10px;color:var(--teal);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;display:block}
-.res-action-text{font-weight:600;font-size:14px;color:var(--white);line-height:1.6}
+.res-action-text{font-weight:600;font-size:13px;color:var(--white);line-height:1.6;margin:0}
+.result-card.high .res-level,.result-card.high .res-action-pill{background:rgba(255,71,87,0.12);color:var(--red);border-color:rgba(255,71,87,0.3)}
+.result-card.high .res-reason-num{background:rgba(255,71,87,0.12);color:var(--red)}
+.result-card.high .res-action{background:rgba(255,71,87,0.08);border-color:rgba(255,71,87,0.25)}
+.result-card.high .res-action-label{color:var(--red)}
+.result-card.medium .res-level,.result-card.medium .res-action-pill{background:rgba(245,158,11,0.12);color:var(--amber);border-color:rgba(245,158,11,0.28)}
+.result-card.medium .res-reason-num{background:rgba(245,158,11,0.12);color:var(--amber)}
+.result-card.medium .res-action{background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.25)}
+.result-card.medium .res-action-label{color:var(--amber)}
+@media(max-width:640px){.result-header{flex-direction:column}.res-score-wrap{text-align:left}.res-score{font-size:40px}}
 .user-bar{display:flex;align-items:center;gap:12px;padding:12px 24px;background:var(--darker);border-top:1px solid var(--border);font-family:var(--font-mono);font-size:11px;color:var(--muted);flex-wrap:wrap}
 .user-bar a{color:var(--teal);text-decoration:none}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(0,0,0,0.2);border-top-color:var(--black);border-radius:50%;animation:spin 0.6s linear infinite;margin-right:8px;vertical-align:middle}
@@ -129,18 +149,25 @@
   </div>
 
   <div class="result-card" id="resultCard">
+    <div class="result-topline" id="resultTopline"></div>
     <div class="result-header">
       <div>
-        <div class="res-level" id="resLevel">HIGH RISK</div>
-        <div class="res-summary" id="resSummary" style="margin-top:8px"></div>
+        <div class="result-verdict">
+          <div class="res-level" id="resLevel">HIGH RISK</div>
+          <div class="res-action-pill" id="resActionPill">BLOCK</div>
+        </div>
+        <p class="res-summary" id="resSummary"></p>
       </div>
-      <div class="res-score" id="resScore">0</div>
+      <div class="res-score-wrap">
+        <div class="res-score" id="resScore">0</div>
+        <div class="res-score-total">/100 risk</div>
+      </div>
     </div>
     <div class="result-body">
       <div class="res-bar"><div class="res-bar-fill" id="resBar"></div></div>
       <ul class="res-reasons" id="resReasons"></ul>
       <div class="res-action">
-        <span class="res-action-label">Recommendation</span>
+        <span class="res-action-label">What to do</span>
         <p class="res-action-text" id="resAction"></p>
       </div>
     </div>
@@ -236,17 +263,19 @@ async function performScan(){
 function renderResult(res){
   const card=document.getElementById('resultCard');
   card.style.display='block';
+  card.className='result-card '+String(res.risk_level||'LOW').toLowerCase();
 
   let color='#00d4a0';
   if(res.risk_level==='HIGH')color='#ff4757';
   else if(res.risk_level==='MEDIUM')color='#f59e0b';
 
   document.getElementById('resLevel').textContent=res.risk_level+' RISK';
-  document.getElementById('resLevel').style.color=color;
+  document.getElementById('resActionPill').textContent=res.action||actionFromRisk(res.risk_level);
   document.getElementById('resScore').textContent=res.risk_score;
   document.getElementById('resScore').style.color=color;
   document.getElementById('resSummary').textContent=res.summary;
   document.getElementById('resAction').textContent=res.what_to_do;
+  document.getElementById('resultTopline').style.background=color;
 
   const bar=document.getElementById('resBar');
   bar.style.width=res.risk_score+'%';
@@ -254,24 +283,26 @@ function renderResult(res){
 
   const list=document.getElementById('resReasons');
   list.innerHTML='';
-  (res.reasons||[]).forEach(r=>{
+  (res.reasons||[]).forEach((r,i)=>{
     const li=document.createElement('li');
     li.className='res-reason';
-    li.innerHTML='<div class="res-reason-dot" style="background:'+color+'"></div>'+r;
+    const num=document.createElement('span');
+    num.className='res-reason-num';
+    num.textContent=i+1;
+    const text=document.createElement('span');
+    text.textContent=r;
+    li.appendChild(num);
+    li.appendChild(text);
     list.appendChild(li);
   });
 
-  if(res.risk_level==='HIGH'){
-    card.style.borderColor='rgba(255,71,87,0.3)';
-    document.querySelector('.res-action').style.borderLeftColor=color;
-    document.querySelector('.res-action').style.background='rgba(255,71,87,0.08)';
-  }else{
-    card.style.borderColor='var(--border)';
-    document.querySelector('.res-action').style.borderLeftColor='var(--teal)';
-    document.querySelector('.res-action').style.background='var(--teal-dim)';
-  }
-
   card.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function actionFromRisk(level){
+  if(level==='HIGH')return 'BLOCK';
+  if(level==='MEDIUM')return 'CAUTION';
+  return 'TRUST';
 }
 
 // Nav scroll

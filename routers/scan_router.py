@@ -10,6 +10,8 @@ from typing import Optional
 
 router = APIRouter(tags=["Scans"])
 
+MESSAGE_NOT_STORED = "[Message content not stored]"
+
 
 @router.post("/scan", response_model=ScanResult)
 async def scan(
@@ -42,19 +44,20 @@ async def scan(
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
     # Save scan to DB — user_id is None for anonymous scans
-    scan_record = db_models.Scan(
-        user_id=current_user.id if current_user else None,
-        message=message or "[Image/Document Upload]",
-        risk_score=result.risk_score,
-        risk_level=result.risk_level,
-        summary=result.summary,
-        reasons=result.reasons,
-        action=result.action,
-        what_to_do=result.what_to_do,
-        pass1_blocked=result.pass1_blocked,
-    )
-    db.add(scan_record)
-    db.commit()
+    if current_user:
+        scan_record = db_models.Scan(
+            user_id=current_user.id,
+            message=MESSAGE_NOT_STORED,
+            risk_score=result.risk_score,
+            risk_level=result.risk_level,
+            summary=result.summary,
+            reasons=result.reasons,
+            action=result.action,
+            what_to_do=result.what_to_do,
+            pass1_blocked=result.pass1_blocked,
+        )
+        db.add(scan_record)
+        db.commit()
 
     return result
 
@@ -73,19 +76,20 @@ async def scan_json(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
-    scan_record = db_models.Scan(
-        user_id=current_user.id if current_user else None,
-        message=body.message,
-        risk_score=result.risk_score,
-        risk_level=result.risk_level,
-        summary=result.summary,
-        reasons=result.reasons,
-        action=result.action,
-        what_to_do=result.what_to_do,
-        pass1_blocked=result.pass1_blocked,
-    )
-    db.add(scan_record)
-    db.commit()
+    if current_user:
+        scan_record = db_models.Scan(
+            user_id=current_user.id,
+            message=MESSAGE_NOT_STORED,
+            risk_score=result.risk_score,
+            risk_level=result.risk_level,
+            summary=result.summary,
+            reasons=result.reasons,
+            action=result.action,
+            what_to_do=result.what_to_do,
+            pass1_blocked=result.pass1_blocked,
+        )
+        db.add(scan_record)
+        db.commit()
 
     return result
 

@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "FraudShield - AI Fraud Guard",
+  "version": "1.0.0",
+  "description": "Silent fraud detection for WhatsApp Web and Gmail. Alerts only when messages look risky.",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*",
+    "https://*.onrender.com/*",
+    "https://*.vercel.app/*",
+    "https://web.whatsapp.com/*",
+    "https://mail.google.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["shared.js", "content-whatsapp.js"],
+      "css": ["alert.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["shared.js", "content-gmail.js"],
+      "css": ["alert.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "FraudShield"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
