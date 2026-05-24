@@ -37,14 +37,18 @@ body{width:320px;background:#07111f;color:#e2e8f0;font-family:Inter,-apple-syste
   <div class="stat high"><div class="num" id="highCount">0</div><div class="lbl">Blocked</div></div>
 </div>
 <div class="section">
-  <div class="title">Backend URL</div>
+  <div class="title">Settings</div>
+  <label style="font-size:10px;color:#64748b;display:block;margin-bottom:4px;">Backend URL</label>
   <input class="field" id="apiBase" placeholder="http://127.0.0.1:8000">
-  <button class="btn" id="saveApi">Save Backend URL</button>
+  <label style="font-size:10px;color:#64748b;display:block;margin-bottom:4px;">Auth Token (JWT)</label>
+  <input class="field" type="password" id="authToken" placeholder="Paste Shield Plus token here">
+  <button class="btn" id="saveSettings">Save Settings</button>
 </div>
 <div class="section">
   <div class="title">Protection</div>
   <div class="row"><span>WhatsApp Web</span><span id="waState">Checking</span></div>
   <div class="row"><span>Gmail</span><span id="gmState">Checking</span></div>
+  <div class="row"><span>Social Media</span><span id="socState">Checking</span></div>
   <div class="row"><span>Safe messages</span><span class="on">Silent</span></div>
 </div>
 <div class="section">
@@ -55,73 +59,6 @@ body{width:320px;background:#07111f;color:#e2e8f0;font-family:Inter,-apple-syste
   <button class="link" id="openScanner">Open Scanner</button>
   <button class="link" id="resetStats">Reset Stats</button>
 </div>
-<script>
-const DEFAULT_API = "http://127.0.0.1:8000";
-const apiInput = document.getElementById("apiBase");
-
-chrome.storage.sync.get(["apiBase"], (settings) => {
-  apiInput.value = settings.apiBase || DEFAULT_API;
-});
-
-document.getElementById("saveApi").onclick = () => {
-  const value = (apiInput.value || DEFAULT_API).replace(/\/+$/, "");
-  chrome.storage.sync.set({ apiBase: value });
-};
-
-chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-  const url = tabs[0]?.url || "";
-  setState("waState", url.includes("web.whatsapp.com"));
-  setState("gmState", url.includes("mail.google.com"));
-});
-
-function setState(id, active) {
-  const el = document.getElementById(id);
-  el.textContent = active ? "Scanning" : "Not open";
-  el.className = active ? "on" : "off";
-}
-
-function loadStats() {
-  chrome.storage.local.get(["scanStats", "recentScans"], (data) => {
-    const stats = data.scanStats || {};
-    document.getElementById("lowCount").textContent = stats.LOW || 0;
-    document.getElementById("medCount").textContent = stats.MEDIUM || 0;
-    document.getElementById("highCount").textContent = stats.HIGH || 0;
-
-    const recent = data.recentScans || [];
-    const wrap = document.getElementById("recentScans");
-    if (!recent.length) {
-      wrap.innerHTML = '<div class="empty">No scans yet.</div>';
-      return;
-    }
-    wrap.innerHTML = recent.slice(0, 5).map((scan) => `
-      <div class="scan">
-        <div class="dot ${scan.risk_level}"></div>
-        <div class="scan-main">
-          <div class="scan-title">${escapeHtml(scan.summary)}</div>
-          <div class="scan-meta">${escapeHtml(scan.source)} - ${new Date(scan.scanned_at).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}</div>
-        </div>
-        <div class="score">${scan.risk_score}</div>
-      </div>
-    `).join("");
-  });
-}
-
-document.getElementById("openScanner").onclick = () => {
-  const base = (apiInput.value || DEFAULT_API).replace(/\/+$/, "");
-  chrome.tabs.create({ url: `${base}/scan` });
-};
-
-document.getElementById("resetStats").onclick = () => {
-  chrome.storage.local.set({ scanStats: { LOW: 0, MEDIUM: 0, HIGH: 0 }, recentScans: [] }, loadStats);
-};
-
-function escapeHtml(text) {
-  const div = document.createElement("div");
-  div.textContent = String(text || "");
-  return div.innerHTML;
-}
-
-loadStats();
-</script>
+<script src="popup.js"></script>
 </body>
 </html>

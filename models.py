@@ -17,6 +17,7 @@ class ScanResult(BaseModel):
     action: Literal["TRUST", "CAUTION", "BLOCK"]
     what_to_do: str
     pass1_blocked: bool = False
+    priority_used: bool = False
  
  
 # ── Auth Models ──────────────────────────────────────────────────────────────
@@ -34,6 +35,7 @@ class UserOut(BaseModel):
     id: int
     full_name: str
     email: str
+    plan: str
     created_at: datetime
  
     class Config:

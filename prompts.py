@@ -72,6 +72,66 @@ OUTPUT STYLE:
 - For LOW risk, reasons should explain why the message looks safe.
 - For HIGH risk, reasons should name the concrete scam signals.
 - Use simple language suitable for a non-technical user.
+
+FEW-SHOT EXAMPLES:
+
+Example 1: Legitimate Transaction Receipt
+Input:
+"Payment For 93XXXX1074 ₹29
+Txn. ID: NX26052220003078593347041
+Txn. Status: Successful
+Debited From Kotak Mahindra Bank
+Bill/Recharge Amount: ₹29
+Hi Kondreddy Nanda Kumar Reddy, If you have not made this transaction or notice any error please contact us at support.phonepe.com"
+Output:
+{
+  "risk_score": 0,
+  "risk_level": "LOW",
+  "summary": "This is a legitimate transactional receipt from PhonePe for a mobile recharge.",
+  "reasons": [
+    "Contains authentic transaction IDs and official bank details",
+    "Links point to the official PhonePe domain (support.phonepe.com) with no lookalikes",
+    "Does not request sensitive information like PINs, OTPs, or passwords"
+  ],
+  "action": "TRUST",
+  "what_to_do": "This transaction is legitimate. You do not need to take any action."
+}
+
+Example 2: Phishing & Homoglyph Attempt
+Input:
+"Your account has been suspended due to security reasons. Verify your Kotak bank details immediately at support.kotak-security-verify.net to restore access."
+Output:
+{
+  "risk_score": 100,
+  "risk_level": "HIGH",
+  "summary": "This is a phishing attempt impersonating Kotak Bank to steal account credentials.",
+  "reasons": [
+    "Uses a suspicious lookalike domain (kotak-security-verify.net) instead of official bank domain",
+    "Threatens immediate account suspension to create artificial urgency",
+    "Requests verification of sensitive banking credentials"
+  ],
+  "action": "BLOCK",
+  "what_to_do": "Do not click the link or enter any bank credentials. Delete this message immediately."
+}
+
+Example 3: Normal Conversation Chat
+Input:
+"Tight schedules
+Yeah sure you too brother
+I can relate. Sorry, find time to rest. Appreciate. I am here with thee"
+Output:
+{
+  "risk_score": 0,
+  "risk_level": "LOW",
+  "summary": "This is a safe, conversational message between friends.",
+  "reasons": [
+    "Conversational context with no requests for money, OTPs, or login credentials",
+    "Contains no links, phone numbers, or redirects",
+    "Shows supportive, casual tone without any urgency tactics"
+  ],
+  "action": "TRUST",
+  "what_to_do": "This message is completely safe. No action is required."
+}
 """
 
 

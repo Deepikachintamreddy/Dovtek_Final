@@ -12,6 +12,7 @@ class User(Base):
     full_name = Column(String, nullable=False, default="User")
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    plan = Column(String, nullable=False, default="free")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
  
     scans = relationship("Scan", back_populates="user")

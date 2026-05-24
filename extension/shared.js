@@ -2,14 +2,21 @@ const FS_DEFAULT_API = "http://127.0.0.1:8000";
 const fsScannedTextKeys = new Set();
 
 let fsApiBase = FS_DEFAULT_API;
+let fsAuthToken = "";
 
-chrome.storage?.sync?.get(["apiBase"], (settings) => {
+chrome.storage?.sync?.get(["apiBase", "authToken"], (settings) => {
   if (settings.apiBase) fsApiBase = cleanApiBase(settings.apiBase);
+  if (settings.authToken) fsAuthToken = settings.authToken;
 });
 
 chrome.storage?.onChanged?.addListener((changes, area) => {
-  if (area === "sync" && changes.apiBase?.newValue) {
-    fsApiBase = cleanApiBase(changes.apiBase.newValue);
+  if (area === "sync") {
+    if (changes.apiBase?.newValue) {
+      fsApiBase = cleanApiBase(changes.apiBase.newValue);
+    }
+    if (changes.authToken?.newValue) {
+      fsAuthToken = changes.authToken.newValue;
+    }
   }
 });
 
@@ -23,9 +30,13 @@ async function scanMessage(text, onResult, source = "extension") {
   trimScanCache();
 
   try {
+    const headers = { "Content-Type": "application/json" };
+    if (fsAuthToken) {
+      headers["Authorization"] = `Bearer ${fsAuthToken}`;
+    }
     const response = await fetch(`${fsApiBase}/scan/json`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ message })
     });
 

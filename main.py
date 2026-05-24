@@ -1,5 +1,5 @@
 # backend/main.py
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -13,15 +13,51 @@ import db_models
 from routers import auth_router, scan_router
 from routers import audit_router, webhook_router, community_router
 from prompts import DEMO_SCENARIOS
+from enterprise.api_key_manager import validate_key
 
 # Create all DB tables on startup if they don't exist
 db_models.Base.metadata.create_all(bind=engine)
+
+from sqlalchemy import text
+with engine.connect() as conn:
+    try:
+        conn.execute(text("ALTER TABLE users ADD COLUMN plan VARCHAR DEFAULT 'free'"))
+        conn.commit()
+    except Exception:
+        pass
 
 app = FastAPI(
     title="ShieldIQ API",
     version="3.0.0",
     description="Enterprise-grade AI fraud detection platform",
 )
+
+# B2B Partner API Key Authentication Middleware
+@app.middleware("http")
+async def api_key_auth_middleware(request: Request, call_next):
+    auth_header = request.headers.get("Authorization", "")
+    api_key = None
+    if auth_header.startswith("Bearer "):
+        api_key = auth_header[7:]
+    elif "x-api-key" in request.headers:
+        api_key = request.headers["x-api-key"]
+
+    # Initialize empty request state attributes to avoid hasattr/getattr errors
+    request.state.api_key_id = None
+    request.state.partner_name = None
+    request.state.tier = None
+    request.state.org_id = None
+
+    if api_key:
+        partner_meta = validate_key(api_key)
+        if partner_meta:
+            request.state.api_key_id = partner_meta["key_id"]
+            request.state.partner_name = partner_meta["partner_name"]
+            request.state.tier = partner_meta["tier"]
+            request.state.org_id = partner_meta.get("org_id")
+
+    response = await call_next(request)
+    return response
 
 app.add_middleware(
     CORSMiddleware,

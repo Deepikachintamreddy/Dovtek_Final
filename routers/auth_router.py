@@ -28,7 +28,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
     token = create_access_token(user.id, user.email)
     return AuthResponse(
         token=token,
-        user=UserOut(id=user.id, full_name=user.full_name, email=user.email, created_at=user.created_at),
+        user=UserOut(id=user.id, full_name=user.full_name, email=user.email, plan=user.plan, created_at=user.created_at),
     )
  
  
@@ -41,7 +41,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     token = create_access_token(user.id, user.email)
     return AuthResponse(
         token=token,
-        user=UserOut(id=user.id, full_name=user.full_name, email=user.email, created_at=user.created_at),
+        user=UserOut(id=user.id, full_name=user.full_name, email=user.email, plan=user.plan, created_at=user.created_at),
     )
  
  
@@ -57,6 +57,23 @@ def me(current_user: db_models.User = Depends(get_current_user)):
         id=current_user.id,
         full_name=current_user.full_name,
         email=current_user.email,
+        plan=current_user.plan,
+        created_at=current_user.created_at,
+    )
+
+
+@router.post("/upgrade", response_model=UserOut)
+def upgrade(plan: str, db: Session = Depends(get_db), current_user: db_models.User = Depends(get_current_user)):
+    if plan not in ["free", "pro", "plus", "enterprise"]:
+        raise HTTPException(status_code=400, detail="Invalid subscription plan")
+    current_user.plan = plan
+    db.commit()
+    db.refresh(current_user)
+    return UserOut(
+        id=current_user.id,
+        full_name=current_user.full_name,
+        email=current_user.email,
+        plan=current_user.plan,
         created_at=current_user.created_at,
     )
  

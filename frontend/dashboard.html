@@ -91,6 +91,17 @@
   <div class="dash-hello" id="dashHello">Welcome back, <span class="accent" id="userName">User</span> 👋</div>
   <div class="dash-sub" id="dashSub">Loading your scan history...</div>
 
+  <!-- Extension Integration Widget -->
+  <div class="extension-widget" style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);padding:18px 20px;margin-bottom:20px;display:flex;flex-direction:column;gap:8px;">
+    <div style="font-weight:700;font-size:14px;color:var(--white);display:flex;align-items:center;gap:8px;">🛡️ Shield Plus Chrome Extension</div>
+    <div style="font-size:12px;color:var(--muted)">Use the extension for automatic background protection on WhatsApp and Gmail. Paste this auth token into the extension popup:</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="password" id="extTokenVal" readonly style="flex:1;background:var(--darker);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--warm);padding:8px 12px;font-family:var(--font-mono);font-size:11px;" value="">
+      <button onclick="toggleTokenVisibility()" class="btn btn-outline btn-sm" style="padding:8px 12px;font-size:11px;cursor:pointer;">Show</button>
+      <button onclick="copyExtToken()" class="btn btn-primary btn-sm" style="padding:8px 12px;font-size:11px;cursor:pointer;background:var(--teal);color:var(--black)">Copy</button>
+    </div>
+  </div>
+
   <!-- Scan quota bar -->
   <div class="quota-bar-wrap" id="quotaBarWrap">
     <span class="quota-label" id="quotaLabel">Today's Scans</span>
@@ -107,7 +118,10 @@
 
   <div class="history-header">
     <div class="history-label" id="histLabel">Scan History</div>
-    <a class="btn btn-primary btn-sm" href="/scan" id="newScanBtn">+ New Scan</a>
+    <div style="display:flex; gap: 8px;">
+      <button class="btn btn-outline btn-sm" id="exportBtn" onclick="exportHistory()" style="font-family:var(--font-mono); font-size:11px; padding:6px 12px; display:none; align-items:center; cursor:pointer;">📥 Export History</button>
+      <a class="btn btn-primary btn-sm" href="/scan" id="newScanBtn">+ New Scan</a>
+    </div>
   </div>
 
   <div class="scan-list" id="scanList">
@@ -217,7 +231,7 @@ const USER_LIMIT = 3;
 function getScansUsed() { return parseInt(localStorage.getItem(SCAN_KEY) || '0', 10); }
 function getRemaining() { return Math.max(0, USER_LIMIT - getScansUsed()); }
 
-function renderQuota() {
+function renderQuota(userPlan) {
   const used = getScansUsed();
   const rem = getRemaining();
   const pct = Math.round((rem / USER_LIMIT) * 100);
@@ -225,6 +239,15 @@ function renderQuota() {
   const fill = document.getElementById('quotaFill');
   const text = document.getElementById('quotaText');
   const upgradeBtn = document.getElementById('quotaUpgradeBtn');
+
+  if (userPlan && userPlan !== 'free') {
+    fill.style.width = '100%';
+    fill.className = 'quota-fill';
+    text.className = 'quota-text ok';
+    text.textContent = 'Unlimited (Active: ' + userPlan.toUpperCase() + ')';
+    upgradeBtn.style.display = 'none';
+    return;
+  }
 
   fill.style.width = pct + '%';
   fill.className = 'quota-fill' + (rem === 0 ? ' empty' : rem === 1 ? ' warn' : '');
@@ -236,6 +259,19 @@ function renderQuota() {
   } else {
     text.textContent = T.quotaLeft.replace('{n}', rem);
     upgradeBtn.style.display = 'none';
+  }
+}
+
+function exportHistory() {
+  try {
+    const user = JSON.parse(localStorage.getItem('dovtek_user') || '{}');
+    if (!user.plan || user.plan === 'free') {
+      document.getElementById('upgradeOverlay').classList.add('on');
+      return;
+    }
+    window.open(API + '/scans/export?format=csv&token=' + token, '_blank');
+  } catch (e) {
+    showToast('Failed to export history: ' + e.message);
   }
 }
 
@@ -257,7 +293,11 @@ async function loadDashboard() {
     const userResp = await fetch(API + '/auth/me', { headers });
     if (!userResp.ok) { logout(); return; }
     const user = await userResp.json();
+    localStorage.setItem('dovtek_user', JSON.stringify(user));
     document.getElementById('userName').textContent = user.full_name || user.email.split('@')[0];
+
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) exportBtn.style.display = 'inline-flex';
 
     const histResp = await fetch(API + '/scans/history?page_size=50', { headers });
     if (!histResp.ok) throw new Error('Failed to load history');
@@ -272,7 +312,7 @@ async function loadDashboard() {
 
     const todayCount = scans.filter(s => s.scanned_at && s.scanned_at.slice(0, 10) === TODAY).length;
     localStorage.setItem(SCAN_KEY, todayCount);
-    renderQuota();
+    renderQuota(user.plan);
 
     if (scans.length === 0) {
       document.getElementById('emptyState').style.display = 'block';
@@ -299,6 +339,24 @@ async function loadDashboard() {
     document.getElementById('loadingState').textContent = T.loadFail + ' ' + e.message;
     showToast(e.message);
   }
+}
+
+document.getElementById('extTokenVal').value = token || '';
+
+function toggleTokenVisibility() {
+  const input = document.getElementById('extTokenVal');
+  if (input.type === 'password') {
+    input.type = 'text';
+  } else {
+    input.type = 'password';
+  }
+}
+
+function copyExtToken() {
+  const input = document.getElementById('extTokenVal');
+  if (!input.value) return;
+  navigator.clipboard.writeText(input.value);
+  showToast('Copied token to clipboard!');
 }
 
 renderQuota();

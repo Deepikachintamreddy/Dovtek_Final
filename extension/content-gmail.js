@@ -9,7 +9,6 @@ const FS_GMAIL_COMPOSE_TIMERS = new WeakMap();
 
 function processGmailEmail(bodyElement) {
   if (!bodyElement || FS_GMAIL_SCANNED_ELEMENTS.has(bodyElement)) return;
-  FS_GMAIL_SCANNED_ELEMENTS.add(bodyElement);
 
   const subject = document.querySelector(GMAIL_SUBJECT_SELECTOR)?.innerText?.trim() || "";
   const sender = document.querySelector(GMAIL_SENDER_SELECTOR)?.getAttribute("email")
@@ -17,6 +16,8 @@ function processGmailEmail(bodyElement) {
     || "";
   const body = bodyElement.innerText?.trim() || "";
   if (body.length < 10) return;
+
+  FS_GMAIL_SCANNED_ELEMENTS.add(bodyElement);
 
   const fullText = [
     subject ? `Subject: ${subject}` : "",

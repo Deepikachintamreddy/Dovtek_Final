@@ -177,18 +177,43 @@ function applyDynamicPricing() {
 
 applyDynamicPricing();
 
-function processPayment() {
+async function processPayment() {
   const btn = document.getElementById('payBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Processing...';
   
-  // Fake processing delay
-  setTimeout(() => {
+  const token = localStorage.getItem('dovtek_token');
+  if (!token) {
+    alert('Please log in first to upgrade.');
+    window.location.href = '/scan';
+    return;
+  }
+  
+  try {
+    const response = await fetch('/auth/upgrade?plan=' + plan, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token
+      }
+    });
+    
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.detail || 'Upgrade failed');
+    }
+    
+    const upgradedUser = await response.json();
+    localStorage.setItem('dovtek_user', JSON.stringify(upgradedUser));
+    
     document.getElementById('successOverlay').classList.add('active');
     setTimeout(() => {
       window.location.href = '/dashboard';
     }, 2500);
-  }, 1500);
+  } catch (error) {
+    alert('Upgrade failed: ' + error.message);
+    btn.disabled = false;
+    btn.textContent = 'Subscribe Now';
+  }
 }
 </script>
 </body>

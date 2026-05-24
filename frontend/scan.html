@@ -300,26 +300,52 @@ function getScanCount() {
   return parseInt(localStorage.getItem(SCAN_STORAGE_KEY) || '0', 10);
 }
 
-function getLimit() { return token ? USER_LIMIT : GUEST_LIMIT; }
+function getLimit() {
+  if (token) {
+    try {
+      const user = JSON.parse(localStorage.getItem('dovtek_user') || '{}');
+      if (user.plan && user.plan !== 'free') {
+        return Infinity;
+      }
+    } catch (e) {}
+    return USER_LIMIT;
+  }
+  return GUEST_LIMIT;
+}
 
 function getRemaining() {
-  return Math.max(0, getLimit() - getScanCount());
+  const limit = getLimit();
+  if (limit === Infinity) return Infinity;
+  return Math.max(0, limit - getScanCount());
 }
 
 function updateRemainingDisplay() {
   const rem = getRemaining();
   const el = document.getElementById('remainingCount');
-  if (el) el.textContent = rem;
+  if (el) el.textContent = rem === Infinity ? '∞' : rem;
   const freeBar = document.getElementById('freeBar');
   if (freeBar) {
-    freeBar.style.background = rem === 0 ? '#ef4444' : '';
-    freeBar.innerHTML = rem === 0
-      ? '✗ No scans remaining — <a href="/" style="color:#000;font-weight:800;text-decoration:underline">Upgrade</a>'
-      : '✓&nbsp;<span id="remainingCount">' + rem + '</span>&nbsp;free scan' + (rem === 1 ? '' : 's') + ' remaining today';
+    if (rem === Infinity) {
+      try {
+        const user = JSON.parse(localStorage.getItem('dovtek_user') || '{}');
+        const planLabel = user.plan ? user.plan.toUpperCase() : 'PRO';
+        freeBar.style.background = '';
+        freeBar.innerHTML = `✓ Active Subscription: <strong>SHIELD IQ ${planLabel}</strong> (Unlimited Scans)`;
+      } catch (e) {
+        freeBar.innerHTML = `✓ Active Subscription: <strong>SHIELD IQ PRO</strong> (Unlimited Scans)`;
+      }
+    } else {
+      freeBar.style.background = rem === 0 ? '#ef4444' : '';
+      freeBar.innerHTML = rem === 0
+        ? '✗ No scans remaining today · <a onclick="openModal(\'signup\')" style="color:#000;font-weight:800;text-decoration:underline;cursor:pointer">Upgrade</a>'
+        : '✓&nbsp;<span id="remainingCount">' + rem + '</span>&nbsp;free scan' + (rem === 1 ? '' : 's') + ' remaining today';
+    }
   }
 }
 
 function incrementScanCount() {
+  const limit = getLimit();
+  if (limit === Infinity) return; // Premium users do not increment scan counts
   const current = getScanCount();
   localStorage.setItem(SCAN_STORAGE_KEY, current + 1);
   updateRemainingDisplay();
@@ -342,6 +368,7 @@ function incrementScanCount() {
     fetch(API+'/auth/me',{headers:{'Authorization':'Bearer '+token}})
       .then(r=>r.ok?r.json():Promise.reject())
       .then(u=>{
+        localStorage.setItem('dovtek_user', JSON.stringify(u));
         document.getElementById('scanCount').textContent='Logged in as '+u.full_name;
       })
       .catch(()=>{});
@@ -355,7 +382,8 @@ function incrementScanCount() {
         updateRemainingDisplay();
         const scanCountEl = document.getElementById('scanCount');
         if (scanCountEl) {
-          scanCountEl.textContent = getRemaining() + ' scans remaining today';
+          const rem = getRemaining();
+          scanCountEl.textContent = rem === Infinity ? 'Unlimited scans · Priority AI Active' : rem + ' scans remaining today';
         }
       })
       .catch(()=>{});
@@ -554,7 +582,12 @@ function renderResult(res){
   if(res.risk_level==='HIGH')color='#ff4757';
   else if(res.risk_level==='MEDIUM')color='#f59e0b';
 
-  document.getElementById('resLevel').textContent=res.risk_level+' RISK';
+  let priorityBadge = '';
+  if (res.priority_used) {
+    priorityBadge = ' <span style="display:inline-block; font-size:10px; background:rgba(0,212,160,0.15); color:var(--teal); border:1.5px solid var(--teal); border-radius:4px; padding:2px 6px; font-weight:800; font-family:var(--font-mono); margin-left:12px; vertical-align:middle; text-transform:uppercase; letter-spacing:0.05em;">⚡ Priority AI</span>';
+  }
+
+  document.getElementById('resLevel').innerHTML=res.risk_level+' RISK' + priorityBadge;
   document.getElementById('resLevel').style.color=color;
   document.getElementById('resScore').textContent=res.risk_score;
   document.getElementById('resScore').style.color=color;
@@ -764,7 +797,8 @@ function applyLanguage(lang){
 
   // Update scan count label
   if (token) {
-    document.getElementById('scanCount').textContent = getRemaining() + ' scans remaining today';
+    const rem = getRemaining();
+    document.getElementById('scanCount').textContent = rem === Infinity ? 'Unlimited scans · Priority AI Active' : rem + ' scans remaining today';
   } else {
     document.getElementById('scanCount').textContent = '1 free scan (guest) · Sign up for 3/day';
   }

@@ -17,11 +17,12 @@ const WA_TEXT_SELECTORS = [
 
 function processWhatsAppMessage(element) {
   if (!element || FS_WA_SCANNED_ELEMENTS.has(element)) return;
-  FS_WA_SCANNED_ELEMENTS.add(element);
 
   if (element.closest("[data-fs-alert='true']")) return;
   const text = extractWhatsAppText(element);
   if (!text || text.length < 10) return;
+
+  FS_WA_SCANNED_ELEMENTS.add(element);
 
   scanMessage(text, (result) => {
     insertAlertBefore(element, result);
