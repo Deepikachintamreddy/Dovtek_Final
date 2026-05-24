@@ -43,6 +43,91 @@ SAFETY_SETTINGS = {
 }
 
 
+# ── Typosquatting / Domain Safety Check ──────────────────────────────────────
+
+TRUSTED_DOMAINS = []
+try:
+    with open(os.path.join(os.path.dirname(__file__), "data_store", "trusted_domains.json"), "r") as f:
+        data = json.load(f)
+        TRUSTED_DOMAINS = [d.lower().strip() for d in data.get("trusted_domains", [])]
+except Exception:
+    TRUSTED_DOMAINS = [
+        "google.com", "gmail.com", "youtube.com", "facebook.com", "instagram.com",
+        "whatsapp.com", "twitter.com", "x.com", "linkedin.com", "netflix.com",
+        "amazon.com", "apple.com", "microsoft.com", "paypal.com", "github.com",
+        "reddit.com", "ebay.com", "walmart.com", "zoom.us", "telegram.org", "discord.com"
+    ]
+
+def levenshtein_distance(s1: str, s2: str) -> int:
+    if len(s1) < len(s2):
+        return levenshtein_distance(s2, s1)
+    if len(s2) == 0:
+        return len(s1)
+
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+
+    return previous_row[-1]
+
+def extract_domains(text: str) -> list[str]:
+    domain_pattern = re.compile(
+        r'(?:https?://)?(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,63})',
+        re.IGNORECASE
+    )
+    matches = domain_pattern.findall(text)
+    domains = []
+    for m in matches:
+        d = m.lower().strip()
+        if d:
+            domains.append(d)
+    return list(set(domains))
+
+def check_typosquatting(text: str) -> list[str]:
+    if not text:
+        return []
+    domains = extract_domains(text)
+    warnings = []
+    
+    for d in domains:
+        if d in TRUSTED_DOMAINS:
+            continue
+            
+        d_parts = d.split(".")
+        if not d_parts:
+            continue
+        d_name = d_parts[0]
+        
+        for td in TRUSTED_DOMAINS:
+            td_parts = td.split(".")
+            if not td_parts:
+                continue
+            td_name = td_parts[0]
+            
+            # Check 1: Substring phishing (e.g., "paypal-update.com" contains "paypal")
+            if td_name in d_name and len(d_name) > len(td_name):
+                warnings.append(
+                    f"The link '{d}' impersonates the trusted brand '{td_name}' (part of '{td}')."
+                )
+                break
+                
+            # Check 2: Typosquatting / Edit distance
+            if abs(len(d_name) - len(td_name)) <= 2:
+                dist = levenshtein_distance(d_name, td_name)
+                if 1 <= dist <= 2:
+                    warnings.append(
+                        f"The link '{d}' is a potential typosquatted lookalike of the trusted brand '{td}'."
+                    )
+                    break
+    return warnings
+
+
 async def extract_text_from_pdf_basic(pdf_bytes: bytes) -> str:
     """Extract only the first page text content from a PDF file for basic plans."""
     if not fitz:
@@ -98,7 +183,19 @@ async def analyze_message(
     if not content:
         raise ValueError("No content provided for analysis")
 
+    typo_warnings = check_typosquatting(text_for_rules) if text_for_rules else []
+
     if text_for_rules and not image_bytes:
+        if typo_warnings:
+            return ScanResult(
+                risk_score=95,
+                risk_level="HIGH",
+                summary="Brand Impersonation / Lookalike URL Detected.",
+                reasons=typo_warnings,
+                action="BLOCK",
+                what_to_do="Do not click links in this message. They mimic trusted brand domains to deceive you.",
+                priority_used=(user_plan != "free"),
+            )
         rule_verdict = scan_message_rules(text_for_rules)
         if (rule_verdict.force_high and rule_verdict.score >= 85) or rule_verdict.force_low:
             res = heuristic_result(text_for_rules)
@@ -106,6 +203,16 @@ async def analyze_message(
             return res
 
     if not api_key:
+        if typo_warnings:
+            return ScanResult(
+                risk_score=95,
+                risk_level="HIGH",
+                summary="Brand Impersonation / Lookalike URL Detected.",
+                reasons=typo_warnings,
+                action="BLOCK",
+                what_to_do="Do not click links in this message. They mimic trusted brand domains to deceive you.",
+                priority_used=(user_plan != "free"),
+            )
         if text_for_rules:
             res = heuristic_result(text_for_rules)
             res.priority_used = (user_plan != "free")
@@ -200,6 +307,11 @@ async def _build_content(
 
     if message:
         content.append(f"Message to check:\n\n{message.strip()[:5000]}")
+
+    # Inject typosquatting warnings into AI context
+    warnings = check_typosquatting(text_for_rules)
+    if warnings:
+        content.append("Domain Verification Analyzer Warnings:\n" + "\n".join(warnings))
 
     return content, text_for_rules[:7000]
 
