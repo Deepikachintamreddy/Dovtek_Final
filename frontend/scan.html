@@ -709,6 +709,33 @@ function setTranslateStatus(state, msg) {
   }
 }
 
+function normalizeHomoglyphs(text) {
+  // Map of common homoglyphs (Cyrillic, Ukrainian, Latin alternatives) to standard ASCII characters
+  const map = {
+    // Cyrillic / Greek matches
+    'А': 'A', 'а': 'a',
+    'В': 'B',
+    'Е': 'E', 'е': 'e',
+    'Ѕ': 'S', 'ѕ': 's',
+    'І': 'I', 'і': 'i', 'ї': 'i', 'ј': 'j',
+    'К': 'K', 'к': 'k',
+    'М': 'M',
+    'Н': 'H',
+    'О': 'O', 'о': 'o',
+    'Р': 'P', 'р': 'p',
+    'С': 'C', 'с': 'c',
+    'Т': 'T',
+    'Х': 'X', 'х': 'x',
+    'Ү': 'Y', 'у': 'y',
+    'З': '3',
+    'р': 'p',
+    // Special quotes & spacing characters sometimes used for obfuscation
+    'а': 'a', 'е': 'e', 'і': 'i', 'о': 'o', 'у': 'y',
+  };
+  
+  return text.split('').map(char => map[char] || char).join('');
+}
+
 function chunkText(text, maxLength = 450) {
   const lines = text.split('\n');
   const chunks = [];
@@ -756,7 +783,8 @@ async function doAutoTranslate(text) {
   setTranslateStatus('translating');
 
   const targetLang = LANG_CODES_MYMEMORY[lang] || lang;
-  const chunks = chunkText(text, 450);
+  const normalizedText = normalizeHomoglyphs(text);
+  const chunks = chunkText(normalizedText, 450);
 
   try {
     const promises = chunks.map(async (chunk) => {
