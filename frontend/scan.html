@@ -709,6 +709,42 @@ function setTranslateStatus(state, msg) {
   }
 }
 
+function chunkText(text, maxLength = 450) {
+  const lines = text.split('\n');
+  const chunks = [];
+  
+  for (let line of lines) {
+    if (!line.trim()) {
+      chunks.push({ text: '', isSeparator: true });
+      continue;
+    }
+    
+    if (line.length <= maxLength) {
+      chunks.push({ text: line, isSeparator: false });
+    } else {
+      // Split long line by words
+      const words = line.split(/\s+/);
+      let currentWordChunk = '';
+      for (let word of words) {
+        if ((currentWordChunk + (currentWordChunk ? ' ' : '') + word).length > maxLength) {
+          if (currentWordChunk) chunks.push({ text: currentWordChunk, isSeparator: false });
+          currentWordChunk = word;
+        } else {
+          currentWordChunk = currentWordChunk ? (currentWordChunk + ' ' + word) : word;
+        }
+      }
+      if (currentWordChunk) {
+        chunks.push({ text: currentWordChunk, isSeparator: false });
+      }
+    }
+    chunks.push({ text: '\n', isSeparator: true });
+  }
+  if (chunks.length > 0 && chunks[chunks.length - 1].text === '\n') {
+    chunks.pop();
+  }
+  return chunks;
+}
+
 async function doAutoTranslate(text) {
   const lang = localStorage.getItem('dovtek_lang') || 'en';
   if (!text.trim() || _isTranslating) return;
@@ -720,28 +756,36 @@ async function doAutoTranslate(text) {
   setTranslateStatus('translating');
 
   const targetLang = LANG_CODES_MYMEMORY[lang] || lang;
+  const chunks = chunkText(text, 450);
 
   try {
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.trim())}&langpair=Autodetect|${targetLang}`;
-    const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    const data = await resp.json();
-
-    if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
-      const translated = data.responseData.translatedText;
-      // Only update if textarea still has the same English text (user didn't change it)
-      const textarea = document.getElementById('scanInput');
-      if (textarea.value.trim() === text.trim()) {
-        _lastTranslatedText = translated;
-        if (translated !== text.trim()) {
-          textarea.value = translated;
-          setTranslateStatus('done', 'Translated to ' + LANG_NAMES[lang]);
-        } else {
-          setTranslateStatus('idle');
-        }
-        setTimeout(() => setTranslateStatus('idle'), 3000);
+    const promises = chunks.map(async (chunk) => {
+      if (chunk.isSeparator) {
+        return chunk.text;
       }
-    } else {
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk.text)}&langpair=Autodetect|${targetLang}`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      const data = await resp.json();
+      if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
+        return data.responseData.translatedText;
+      }
       throw new Error('fail');
+    });
+
+    const translatedParts = await Promise.all(promises);
+    const translated = translatedParts.join('');
+
+    // Only update if textarea still has the same English text (user didn't change it)
+    const textarea = document.getElementById('scanInput');
+    if (textarea.value.trim() === text.trim()) {
+      _lastTranslatedText = translated;
+      if (translated !== text.trim()) {
+        textarea.value = translated;
+        setTranslateStatus('done', 'Translated to ' + LANG_NAMES[lang]);
+      } else {
+        setTranslateStatus('idle');
+      }
+      setTimeout(() => setTranslateStatus('idle'), 3000);
     }
   } catch(e) {
     setTranslateStatus('error', 'Could not translate — try again');
