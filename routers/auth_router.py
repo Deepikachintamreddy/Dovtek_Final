@@ -5,6 +5,7 @@ from database import get_db
 import db_models
 from auth import hash_password, verify_password, create_access_token, get_current_user
 from models import RegisterRequest, LoginRequest, AuthResponse, UserOut
+from enterprise.audit_store import write_user_activity
  
 router = APIRouter(prefix="/auth", tags=["Auth"])
  
@@ -26,6 +27,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
     db.refresh(user)
  
     token = create_access_token(user.id, user.email)
+    write_user_activity(user.id, user.email, "register", {"name": user.full_name})
     return AuthResponse(
         token=token,
         user=UserOut(id=user.id, full_name=user.full_name, email=user.email, plan=user.plan, created_at=user.created_at),
@@ -39,6 +41,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
  
     token = create_access_token(user.id, user.email)
+    write_user_activity(user.id, user.email, "login")
     return AuthResponse(
         token=token,
         user=UserOut(id=user.id, full_name=user.full_name, email=user.email, plan=user.plan, created_at=user.created_at),
@@ -48,6 +51,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 @router.post("/logout")
 def logout(current_user: db_models.User = Depends(get_current_user)):
     # JWT is stateless — client should delete the token on their end
+    write_user_activity(current_user.id, current_user.email, "logout")
     return {"message": "Logged out successfully"}
  
  
@@ -69,6 +73,7 @@ def upgrade(plan: str, db: Session = Depends(get_db), current_user: db_models.Us
     current_user.plan = plan
     db.commit()
     db.refresh(current_user)
+    write_user_activity(current_user.id, current_user.email, "upgrade_plan", {"plan": plan})
     return UserOut(
         id=current_user.id,
         full_name=current_user.full_name,

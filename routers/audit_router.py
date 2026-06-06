@@ -13,7 +13,7 @@ import os
 import logging
 from fastapi import APIRouter, Request, HTTPException, Query
 
-from enterprise.audit_store import get_user_history, get_admin_summary
+from enterprise.audit_store import get_user_history, get_admin_summary, get_user_activities, get_platform_metrics
 from enterprise.pattern_store import get_pattern_stats
 from enterprise.report_generator import generate_report
 
@@ -67,3 +67,25 @@ async def get_report(
     if not ADMIN_KEY or admin_key != ADMIN_KEY:
         raise HTTPException(status_code=403, detail="Admin access required")
     return generate_report(days=days)
+
+
+@router.get("/activities", summary="Admin — recent user activities")
+async def get_activities(
+    limit: int = Query(default=50, ge=1, le=500),
+    admin_key: str = Query(default="")
+):
+    """Admin only. Returns recent user activities (signup, login, logout, etc.)."""
+    if not ADMIN_KEY or admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return get_user_activities(limit=limit)
+
+
+@router.get("/metrics", summary="Admin — recent platform usage metrics")
+async def get_metrics(
+    limit: int = Query(default=50, ge=1, le=500),
+    admin_key: str = Query(default="")
+):
+    """Admin only. Returns recent platform usage metrics (requests, latency, client ip)."""
+    if not ADMIN_KEY or admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return get_platform_metrics(limit=limit)
