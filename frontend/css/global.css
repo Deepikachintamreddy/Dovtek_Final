@@ -648,3 +648,22 @@ body::after {
 
 /* ── Selection ── */
 ::selection { background: var(--teal-strong); color: var(--white); }
+
+/* ── Page Transitions ── */
+body {
+  animation: fadeInPage 0.35s ease-out both;
+}
+
+@keyframes fadeInPage {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.container, .plans-container {
+  animation: slideUpPage 0.5s var(--ease-out) both;
+}
+
+@keyframes slideUpPage {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

@@ -162,3 +162,91 @@ def get_admin_summary(days: int = 30, org_id: Optional[str] = None) -> dict:
         "confirmed_fraud_reports": overrides,
         "override_rate_pct": round(overrides / max(len(records), 1) * 100, 1),
     }
+
+
+USER_ACTIVITY_FILE = os.path.join(AUDIT_DIR, "user_activity.jsonl")
+PLATFORM_METRICS_FILE = os.path.join(AUDIT_DIR, "platform_metrics.jsonl")
+
+def write_user_activity(
+    user_id: Optional[int],
+    email: str,
+    action: str,
+    details: Optional[dict] = None
+) -> None:
+    """Record user activity (login, signup, logout, upgrade, etc.)."""
+    record = {
+        "user_id": user_id,
+        "email": email,
+        "action": action,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "details": details or {},
+    }
+    try:
+        with open(USER_ACTIVITY_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception as e:
+        logger.error("User activity write failed: %s", str(e))
+
+def write_platform_metric(
+    endpoint: str,
+    method: str,
+    status_code: int,
+    latency_ms: int,
+    client_ip: str
+) -> None:
+    """Record platform usage metrics (latency, status codes, endpoint hit)."""
+    record = {
+        "endpoint": endpoint,
+        "method": method,
+        "status_code": status_code,
+        "latency_ms": latency_ms,
+        "client_ip": client_ip,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        with open(PLATFORM_METRICS_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception as e:
+        logger.error("Platform metric write failed: %s", str(e))
+
+def get_user_activities(limit: int = 50) -> list:
+    """Retrieve recent user activities."""
+    if not os.path.exists(USER_ACTIVITY_FILE):
+        return []
+    records = []
+    try:
+        with open(USER_ACTIVITY_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    except Exception as e:
+        logger.error("Failed to read user activities: %s", str(e))
+    # Sort newest first
+    records.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    return records[:limit]
+
+def get_platform_metrics(limit: int = 50) -> list:
+    """Retrieve recent platform metrics."""
+    if not os.path.exists(PLATFORM_METRICS_FILE):
+        return []
+    records = []
+    try:
+        with open(PLATFORM_METRICS_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    except Exception as e:
+        logger.error("Failed to read platform metrics: %s", str(e))
+    # Sort newest first
+    records.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    return records[:limit]

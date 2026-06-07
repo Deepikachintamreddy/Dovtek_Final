@@ -3,8 +3,10 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from dotenv import load_dotenv
 import os
+import time
+from dotenv import load_dotenv
+from enterprise.audit_store import write_platform_metric
 
 load_dotenv()
 
@@ -58,6 +60,35 @@ async def api_key_auth_middleware(request: Request, call_next):
             request.state.org_id = partner_meta.get("org_id")
 
     response = await call_next(request)
+    return response
+
+@app.middleware("http")
+async def platform_metrics_middleware(request: Request, call_next):
+    # Exclude static files and asset routes to keep logs clean
+    path = request.url.path
+    if (
+        path.startswith(("/css", "/assets", "/favicon.ico")) 
+        or path.endswith((".html", ".css", ".js", ".png", ".jpg", ".webp"))
+    ):
+        return await call_next(request)
+
+    start_time = time.time()
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    except Exception as e:
+        status_code = 500
+        raise e
+    finally:
+        latency_ms = int((time.time() - start_time) * 1000)
+        client_ip = request.client.host if request.client else "unknown"
+        write_platform_metric(
+            endpoint=path,
+            method=request.method,
+            status_code=status_code,
+            latency_ms=latency_ms,
+            client_ip=client_ip
+        )
     return response
 
 app.add_middleware(
@@ -141,6 +172,10 @@ async def serve_scan_page():
 @app.get("/dashboard")
 async def serve_dashboard():
     return NoCacheFileResponse(os.path.join(FRONTEND_DIR, "dashboard.html"))
+
+@app.get("/plans")
+async def serve_plans():
+    return NoCacheFileResponse(os.path.join(FRONTEND_DIR, "plans.html"))
 
 @app.get("/checkout")
 async def serve_checkout():

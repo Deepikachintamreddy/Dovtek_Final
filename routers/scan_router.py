@@ -177,55 +177,70 @@ async def scan_json(
     db: Session = Depends(get_db),
     current_user: Optional[db_models.User] = Depends(get_optional_user),
 ):
-    """Analyze a text message (JSON body) for fraud signals."""
+    """Analyze a text message (JSON body) for fraud signals. Restrict usage to paid subscribers and B2B keys."""
     request_id = uuid.uuid4().hex[:16]
     api_key_id = getattr(request.state, "api_key_id", None)
     partner_name = getattr(request.state, "partner_name", None)
     tier = getattr(request.state, "tier", None)
     org_id = getattr(request.state, "org_id", None)
 
-    if not current_user and not api_key_id:
-        from datetime import datetime, timezone
-        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        guest_count = db.query(db_models.Scan).filter(
-            db_models.Scan.user_id.is_(None),
-            db_models.Scan.scanned_at >= today_start,
-        ).count()
-        if guest_count >= 1:
+    # ── Web app quota (non-extension requests) ───────────────────────────────
+    if not api_key_id:
+        if not current_user:
+            # Guest quota
+            from datetime import datetime, timezone
+            today_start = datetime.now(timezone.utc).replace(
+                hour=0, minute=0, second=0, microsecond=0)
+            guest_count = db.query(db_models.Scan).filter(
+                db_models.Scan.user_id.is_(None),
+                db_models.Scan.scanned_at >= today_start,
+            ).count()
+            if guest_count >= 1:
+                raise HTTPException(
+                    status_code=402,
+                    detail={
+                        "error": "quota_exceeded",
+                        "tier": "guest",
+                        "message": "Guest limit reached. Create a free account for 3 scans/day.",
+                        "upgrade_url": "/?signup=1",
+                    }
+                )
+        elif current_user.plan == "free":
+            # Free user quota
+            from datetime import datetime, timezone
+            today_start = datetime.now(timezone.utc).replace(
+                hour=0, minute=0, second=0, microsecond=0)
+            scan_count = db.query(db_models.Scan).filter(
+                db_models.Scan.user_id == current_user.id,
+                db_models.Scan.scanned_at >= today_start
+            ).count()
+            if scan_count >= 3:
+                raise HTTPException(
+                    status_code=402,
+                    detail={
+                        "error": "quota_exceeded",
+                        "tier": "free",
+                        "message": "Daily limit reached. Upgrade to Pro for unlimited scans.",
+                        "upgrade_url": "/checkout?plan=pro",
+                    }
+                )
+
+    # ── Extension / JSON endpoint plan check ─────────────────────────────────
+    # /scan/json is called by the Chrome extension — requires Plus or Enterprise
+    if not api_key_id and current_user:
+        if current_user.plan not in ("pro", "plus", "enterprise"):
             raise HTTPException(
-                status_code=402,
-                detail={
-                    "error": "quota_exceeded",
-                    "tier": "guest",
-                    "message": "Guest limit reached. Create a free account for 3 scans/day.",
-                    "upgrade_url": "/?signup=1",
-                }
+                status_code=403,
+                detail="Shield Plus or Enterprise subscription is required to use the Chrome Extension."
             )
 
-    if current_user and current_user.plan == "free" and not api_key_id:
-        from datetime import datetime, timezone
-        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        scan_count = db.query(db_models.Scan).filter(
-            db_models.Scan.user_id == current_user.id,
-            db_models.Scan.scanned_at >= today_start
-        ).count()
-        if scan_count >= 3:
-            raise HTTPException(
-                status_code=402,
-                detail={
-                    "error": "quota_exceeded",
-                    "tier": "free",
-                    "message": "Daily limit reached. Upgrade to Pro for unlimited scans.",
-                    "upgrade_url": "/checkout?plan=pro",
-                }
-            )
+    # ── Set user_plan for analyzer ───────────────────────────────────────────
+    if api_key_id:
+        user_plan = tier or "enterprise"
+    else:
+        user_plan = current_user.plan if current_user else "free"
 
     try:
-        if api_key_id:
-            user_plan = tier or "enterprise"
-        else:
-            user_plan = current_user.plan if current_user else "free"
-
         result = await analyze_message(body.message, user_plan=user_plan)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

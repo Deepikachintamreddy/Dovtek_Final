@@ -24,6 +24,14 @@ async function scanMessage(text, onResult, source = "extension") {
   const message = String(text || "").replace(/\s+/g, " ").trim();
   if (message.length < 10) return;
 
+  // Verify that protection is enabled by the user
+  const isEnabled = await new Promise((resolve) => {
+    chrome.storage.sync.get(["protectionEnabled"], (settings) => {
+      resolve(!!settings.protectionEnabled);
+    });
+  });
+  if (!isEnabled) return;
+
   const key = `${source}:${message.slice(0, 260)}`;
   if (fsScannedTextKeys.has(key)) return;
   fsScannedTextKeys.add(key);
