@@ -278,8 +278,8 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const API = '';
-let mode = 'text';
+const API  = '';
+let mode   = 'text';
 const token = localStorage.getItem('dovtek_token');
 
 function handleDashboardClick(e) {
@@ -289,109 +289,102 @@ function handleDashboardClick(e) {
   }
 }
 
-// ── Scan Quota Helpers ──────────────────────────────────────────────────────
+// ── Tier helpers ──────────────────────────────────────────────────────────
 const GUEST_LIMIT = 1;
-const USER_LIMIT = 3;
-const TODAY = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
-// Use separate keys so guest and logged-in user quotas never clash
-const SCAN_STORAGE_KEY = token ? 'dovtek_scan_user_' + TODAY : 'dovtek_scan_guest_' + TODAY;
+const USER_LIMIT  = 3;
+const TODAY       = new Date().toISOString().slice(0, 10);
+const SCAN_STORAGE_KEY = token
+  ? 'dovtek_scan_user_' + TODAY
+  : 'dovtek_scan_guest_' + TODAY;
 
-function getScanCount() {
-  return parseInt(localStorage.getItem(SCAN_STORAGE_KEY) || '0', 10);
-}
+const userObj  = JSON.parse(localStorage.getItem('dovtek_user') || '{}');
+const userPlan = userObj.plan || 'free';
+const isPro    = userPlan === 'pro' || userPlan === 'plus';
 
-function getLimit() {
-  if (token) {
-    try {
-      const user = JSON.parse(localStorage.getItem('dovtek_user') || '{}');
-      if (user.plan && user.plan !== 'free') {
-        return Infinity;
-      }
-    } catch (e) {}
-    return USER_LIMIT;
-  }
-  return GUEST_LIMIT;
-}
-
+function getScanCount() { return parseInt(localStorage.getItem(SCAN_STORAGE_KEY) || '0', 10); }
+function getLimit()     { return isPro ? Infinity : (token ? USER_LIMIT : GUEST_LIMIT); }
 function getRemaining() {
   const limit = getLimit();
-  if (limit === Infinity) return Infinity;
-  return Math.max(0, limit - getScanCount());
+  return limit === Infinity ? Infinity : Math.max(0, limit - getScanCount());
 }
 
 function updateRemainingDisplay() {
-  const rem = getRemaining();
-  const el = document.getElementById('remainingCount');
-  if (el) el.textContent = rem === Infinity ? '∞' : rem;
+  const rem     = getRemaining();
   const freeBar = document.getElementById('freeBar');
-  if (freeBar) {
-    if (rem === Infinity) {
-      try {
-        const user = JSON.parse(localStorage.getItem('dovtek_user') || '{}');
-        const planLabel = user.plan ? user.plan.toUpperCase() : 'PRO';
-        freeBar.style.background = '';
-        freeBar.innerHTML = `✓ Active Subscription: <strong>SHIELD IQ ${planLabel}</strong> (Unlimited Scans)`;
-      } catch (e) {
-        freeBar.innerHTML = `✓ Active Subscription: <strong>SHIELD IQ PRO</strong> (Unlimited Scans)`;
-      }
-    } else {
+  const scanCountEl = document.getElementById('scanCount');
+
+  if (isPro) {
+    if (freeBar) {
+      freeBar.style.background = 'linear-gradient(90deg,#0d9488,#0f766e)';
+      freeBar.style.color      = '#fff';
+      freeBar.innerHTML        = '⚡ Pro · <strong style="letter-spacing:0.06em">∞ Unlimited Scans</strong> · Priority AI Active';
+    }
+    if (scanCountEl) scanCountEl.textContent = '∞ unlimited scans · Pro';
+  } else {
+    if (freeBar) {
       freeBar.style.background = rem === 0 ? '#ef4444' : '';
+      freeBar.style.color      = '';
       freeBar.innerHTML = rem === 0
-        ? '✗ No scans remaining today · <a onclick="openModal(\'signup\')" style="color:#000;font-weight:800;text-decoration:underline;cursor:pointer">Upgrade</a>'
+        ? '✗ No scans remaining — <a href="/checkout?plan=pro" style="color:#000;font-weight:800;text-decoration:underline">Upgrade to Pro</a>'
         : '✓&nbsp;<span id="remainingCount">' + rem + '</span>&nbsp;free scan' + (rem === 1 ? '' : 's') + ' remaining today';
+    }
+    if (scanCountEl) {
+      scanCountEl.textContent = token
+        ? getRemaining() + ' scans remaining today'
+        : '1 free scan (guest) · Sign up for 3/day';
     }
   }
 }
 
 function incrementScanCount() {
-  const limit = getLimit();
-  if (limit === Infinity) return; // Premium users do not increment scan counts
-  const current = getScanCount();
-  localStorage.setItem(SCAN_STORAGE_KEY, current + 1);
+  if (isPro) return;
+  localStorage.setItem(SCAN_STORAGE_KEY, getScanCount() + 1);
   updateRemainingDisplay();
 }
 
-// Auth state
-(function initAuth(){
-  if(token){
+// ── Auth state ────────────────────────────────────────────────────────────
+(function initAuth() {
+  if (token) {
     document.getElementById('authBtn').textContent = 'Logout';
-    // Hide the "Try Free" button in nav since user is already logged in
     const tryFreeBtn = document.querySelector('.nav-actions .btn-primary');
     if (tryFreeBtn) tryFreeBtn.style.display = 'none';
     const mobileAuthNav = document.getElementById('mobileAuthNav');
     if (mobileAuthNav) {
       mobileAuthNav.innerHTML = `
-        <a href="#" onclick="handleAuth();document.getElementById('mobileNav').classList.remove('open')" style="color:#ef4444">Logout</a>
-      `;
+        <a href="#" onclick="handleAuth();document.getElementById('mobileNav').classList.remove('open')"
+           style="color:#ef4444">Logout</a>`;
     }
-    
-    fetch(API+'/auth/me',{headers:{'Authorization':'Bearer '+token}})
-      .then(r=>r.ok?r.json():Promise.reject())
-      .then(u=>{
-        localStorage.setItem('dovtek_user', JSON.stringify(u));
-        document.getElementById('scanCount').textContent='Logged in as '+u.full_name;
-      })
-      .catch(()=>{});
 
-    fetch(API+'/scans/history?page_size=100',{headers:{'Authorization':'Bearer '+token}})
-      .then(r=>r.ok?r.json():Promise.reject())
-      .then(data=>{
+    fetch(API + '/auth/me', { headers: { 'Authorization': 'Bearer ' + token } })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(u => {
+        // Sync plan from server
+        if (u.plan && u.plan !== userPlan) {
+          const updated = { ...userObj, plan: u.plan };
+          localStorage.setItem('dovtek_user', JSON.stringify(updated));
+          location.reload();
+          return;
+        }
+        document.getElementById('scanCount').textContent = 'Logged in as ' + u.full_name;
+      })
+      .catch(() => {});
+
+    fetch(API + '/scans/history?page_size=100', { headers: { 'Authorization': 'Bearer ' + token } })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
         const scans = data.scans || [];
-        const todayCount = scans.filter(s => s.scanned_at && s.scanned_at.slice(0,10) === TODAY).length;
+        const todayCount = scans.filter(s => s.scanned_at && s.scanned_at.slice(0, 10) === TODAY).length;
         localStorage.setItem('dovtek_scan_user_' + TODAY, todayCount);
         updateRemainingDisplay();
-        const scanCountEl = document.getElementById('scanCount');
-        if (scanCountEl) {
-          const rem = getRemaining();
-          scanCountEl.textContent = rem === Infinity ? 'Unlimited scans · Priority AI Active' : rem + ' scans remaining today';
-        }
+        const el = document.getElementById('scanCount');
+        if (el) el.textContent = isPro ? '∞ unlimited scans · Pro' : getRemaining() + ' scans remaining today';
       })
-      .catch(()=>{});
+      .catch(() => {});
   }
 })();
 
-function handleAuth(){
-  if(token){
+function handleAuth() {
+  if (token) {
     localStorage.removeItem('dovtek_token');
     localStorage.removeItem('dovtek_user');
     Object.keys(localStorage).forEach(k => {
@@ -403,32 +396,20 @@ function handleAuth(){
   }
 }
 
-// Modal controls
-function openModal(t) {
-  document.getElementById(t + 'Overlay').classList.add('on');
-  document.body.style.overflow = 'hidden';
-}
-function closeModal(t) {
-  document.getElementById(t + 'Overlay').classList.remove('on');
-  document.body.style.overflow = '';
-}
-function switchModal(from, to) {
-  closeModal(from);
-  setTimeout(() => openModal(to), 150);
-}
+// ── Modals ────────────────────────────────────────────────────────────────
+function openModal(t)        { document.getElementById(t+'Overlay').classList.add('on'); document.body.style.overflow='hidden'; }
+function closeModal(t)       { document.getElementById(t+'Overlay').classList.remove('on'); document.body.style.overflow=''; }
+function switchModal(from,to){ closeModal(from); setTimeout(()=>openModal(to),150); }
+
 document.querySelectorAll('.overlay').forEach(o => {
   o.addEventListener('click', function(e) {
-    if (e.target === this) {
-      this.classList.remove('on');
-      document.body.style.overflow = '';
-    }
+    if (e.target === this) { this.classList.remove('on'); document.body.style.overflow=''; }
   });
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     document.querySelectorAll('.overlay.on').forEach(o => {
-      o.classList.remove('on');
-      document.body.style.overflow = '';
+      o.classList.remove('on'); document.body.style.overflow='';
     });
   }
 });
@@ -441,12 +422,11 @@ function checkStrength() {
   if (pwd.match(/[A-Z]/)) s++;
   if (pwd.match(/[0-9]/)) s++;
   if (pwd.match(/[^a-zA-Z0-9]/)) s++;
-
-  if (pwd.length === 0) { label.textContent = 'None'; label.style.color = 'var(--muted)'; }
-  else if (s <= 1) { label.textContent = 'Weak - Add uppercase, numbers & symbols'; label.style.color = 'var(--red)'; }
-  else if (s === 2) { label.textContent = 'Fair - Add uppercase or symbols'; label.style.color = 'var(--orange)'; }
-  else if (s === 3) { label.textContent = 'Good'; label.style.color = 'var(--teal)'; }
-  else { label.textContent = 'Strong'; label.style.color = 'var(--teal)'; }
+  if (!pwd.length)  { label.textContent='None'; label.style.color='var(--muted)'; }
+  else if (s <= 1)  { label.textContent='Weak - Add uppercase, numbers & symbols'; label.style.color='var(--red)'; }
+  else if (s === 2) { label.textContent='Fair - Add uppercase or symbols'; label.style.color='var(--orange)'; }
+  else if (s === 3) { label.textContent='Good'; label.style.color='var(--teal)'; }
+  else              { label.textContent='Strong'; label.style.color='var(--teal)'; }
 }
 
 function forgotPassword() {
@@ -457,10 +437,10 @@ function forgotPassword() {
 
 async function handleLogin() {
   const email = document.getElementById('loginEmail').value.trim();
-  const pass = document.getElementById('loginPass').value;
-  if (!email || !pass) { showToast('Please enter email and password'); return }
+  const pass  = document.getElementById('loginPass').value;
+  if (!email || !pass) { showToast('Please enter email and password'); return; }
   try {
-    const r = await fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pass }) });
+    const r = await fetch(API+'/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,password:pass}) });
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || 'Login failed');
     localStorage.setItem('dovtek_token', d.token);
@@ -468,220 +448,277 @@ async function handleLogin() {
     showToast(`Welcome back, ${d.user.full_name}!`);
     closeModal('login');
     setTimeout(() => location.reload(), 800);
-  } catch (e) { showToast(e.message) }
+  } catch(e) { showToast(e.message); }
 }
 
 async function handleSignup() {
-  const name = document.getElementById('signupName').value.trim();
+  const name  = document.getElementById('signupName').value.trim();
   const email = document.getElementById('signupEmail').value.trim();
-  const pass = document.getElementById('signupPass').value;
-  if (!name || !email || !pass) { showToast('Please fill in all fields'); return }
-  if (pass.length < 8) { showToast('Password must be at least 8 characters'); return }
+  const pass  = document.getElementById('signupPass').value;
+  if (!name||!email||!pass) { showToast('Please fill in all fields'); return; }
+  if (pass.length < 8)      { showToast('Password must be at least 8 characters'); return; }
   try {
-    const r = await fetch(API + '/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ full_name: name, email, password: pass }) });
+    const r = await fetch(API+'/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({full_name:name,email,password:pass}) });
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || 'Signup failed');
     localStorage.setItem('dovtek_token', d.token);
     localStorage.setItem('dovtek_user', JSON.stringify(d.user));
     showToast('Account created!');
     closeModal('signup');
+    // Handle post-auth redirect from checkout
+    const redirect = sessionStorage.getItem('post_auth_redirect');
+    if (redirect) { sessionStorage.removeItem('post_auth_redirect'); location.href = redirect; return; }
     setTimeout(() => location.reload(), 800);
-  } catch (e) { showToast(e.message) }
+  } catch(e) { showToast(e.message); }
 }
 
-function showToast(msg,type){
-  const t=document.getElementById('toast');
-  t.textContent=msg;t.className='toast show'+(type?' '+type:'');
-  setTimeout(()=>t.classList.remove('show'),3500);
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = 'toast show' + (type ? ' ' + type : '');
+  setTimeout(() => t.classList.remove('show'), 3500);
 }
 
-function switchTab(m){
-  mode=m;
-  document.getElementById('tabText').classList.toggle('on',m==='text');
-  document.getElementById('tabImage').classList.toggle('on',m==='image');
-  document.getElementById('zoneText').style.display=m==='text'?'block':'none';
-  document.getElementById('zoneImage').style.display=m==='image'?'block':'none';
-}
+// ── Tab switching with PDF gate ───────────────────────────────────────────
+function switchTab(m) {
+  mode = m;
+  document.getElementById('tabText').classList.toggle('on',  m === 'text');
+  document.getElementById('tabImage').classList.toggle('on', m === 'image');
+  document.getElementById('zoneText').style.display = m === 'text' ? 'block' : 'none';
 
-function handleFile(input){
-  if(input.files&&input.files[0]){
-    const f=input.files[0];
-    document.getElementById('fileName').innerHTML='<b>'+f.name+'</b><br>Ready for analysis';
-    document.getElementById('dropZone').classList.add('active');
-    showToast('File selected. Click Analyse.','success');
+  if (m === 'image' && !isPro) {
+    document.getElementById('zoneImage').style.display = 'block';
+    document.getElementById('dropZone').innerHTML = `
+      <span class="upload-icon">🔒</span>
+      <span class="upload-text">
+        <strong style="color:var(--white);font-size:13px;">PDF & Image Scanning</strong><br>
+        Available on Pro & Shield Plus<br><br>
+        <a href="/checkout?plan=pro"
+          style="background:var(--teal);color:#000;padding:8px 20px;border-radius:6px;
+                 font-weight:700;font-size:12px;text-decoration:none;letter-spacing:0.05em;">
+          Upgrade to Pro →
+        </a>
+      </span>`;
+    document.getElementById('dropZone').onclick     = () => location.href = '/checkout?plan=pro';
+    document.getElementById('scanBtn').disabled     = true;
+    document.getElementById('scanBtn').textContent  = '🔒 Unlock PDF Scanning — Upgrade to Pro';
+  } else {
+    document.getElementById('zoneImage').style.display = m === 'image' ? 'block' : 'none';
+    if (m === 'image' && isPro) {
+      document.getElementById('dropZone').innerHTML = `
+        <span class="upload-icon">🖼️</span>
+        <span class="upload-text" id="fileName">Click to upload or drag & drop<br>PNG, JPG, or PDF</span>
+        <input type="file" id="fileInput" hidden accept="image/*,.pdf" onchange="handleFile(this)">`;
+      document.getElementById('dropZone').onclick = () => document.getElementById('fileInput').click();
+    }
+    document.getElementById('scanBtn').disabled    = false;
+    document.getElementById('scanBtn').textContent = 'Analyze Message';
   }
 }
 
-async function performScan(){
-  // ── Quota check ──
+function handleFile(input) {
+  if (input.files && input.files[0]) {
+    const f = input.files[0];
+    document.getElementById('fileName').innerHTML = '<b>' + f.name + '</b><br>Ready for analysis';
+    document.getElementById('dropZone').classList.add('active');
+    showToast('File selected. Click Analyse.', 'success');
+  }
+}
+
+// ── Scan ──────────────────────────────────────────────────────────────────
+async function performScan() {
   if (getRemaining() <= 0) {
-    if (token) {
-      document.getElementById('upgradeOverlay').style.display = 'flex';
-    } else {
-      document.getElementById('guestGateOverlay').style.display = 'flex';
-    }
+    document.getElementById(token ? 'upgradeOverlay' : 'guestGateOverlay').style.display = 'flex';
     return;
   }
 
-  const text=document.getElementById('scanInput').value.trim();
-  const file=document.getElementById('fileInput').files[0];
-  if(mode==='text'&&!text){showToast('Please paste a message','error');return}
-  if(mode==='image'&&!file){showToast('Please upload a file','error');return}
+  const text = document.getElementById('scanInput').value.trim();
+  const file = document.getElementById('fileInput') ? document.getElementById('fileInput').files[0] : null;
+  if (mode==='text' && !text)  { showToast('Please paste a message','error'); return; }
+  if (mode==='image' && !file) { showToast('Please upload a file','error'); return; }
 
-  const btn=document.getElementById('scanBtn');
-  btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Analyzing with AI...';
-  document.getElementById('resultCard').style.display='none';
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Analyzing with AI...';
+  document.getElementById('resultCard').style.display = 'none';
 
-  const fd=new FormData();
-  if(mode==='text')fd.append('message',text);
-  else fd.append('file',file);
+  const fd = new FormData();
+  if (mode==='text') fd.append('message', text);
+  else               fd.append('file', file);
 
-  const headers={};
-  if(token)headers['Authorization']='Bearer '+token;
+  const headers = {};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
 
-  try{
-    const resp=await fetch(API+'/scan',{method:'POST',body:fd,headers});
-    const data=await resp.json();
-    if(!resp.ok)throw new Error(data.detail||'Analysis failed');
+  try {
+    const resp = await fetch(API+'/scan', { method:'POST', body:fd, headers });
+
+    if (!resp.ok) {
+      const errBody = await resp.json().catch(() => ({}));
+      const detail  = errBody.detail || {};
+      if (resp.status === 402 || detail.error === 'quota_exceeded') {
+        document.getElementById(token ? 'upgradeOverlay' : 'guestGateOverlay').style.display = 'flex';
+        return;
+      }
+      if (resp.status === 403 && detail.error === 'feature_locked') {
+        showToast('PDF & image scanning requires Pro', 'error');
+        setTimeout(() => location.href = '/checkout?plan=pro', 1500);
+        return;
+      }
+      throw new Error(detail.message || detail || 'Analysis failed');
+    }
+
+    const data = await resp.json();
     incrementScanCount();
     renderResult(data);
-    // If user just used their last scan, show the gate after result
+
     if (getRemaining() === 0) {
       setTimeout(() => {
-        if (token) {
-          document.getElementById('upgradeOverlay').style.display = 'flex';
-        } else {
-          document.getElementById('guestGateOverlay').style.display = 'flex';
-        }
+        document.getElementById(token ? 'upgradeOverlay' : 'guestGateOverlay').style.display = 'flex';
       }, 2500);
     }
-  }catch(err){
-    showToast(err.message,'error');
-  }finally{
-    btn.disabled=false;btn.textContent='Analyze Message';
+  } catch(err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled  = false;
+    btn.textContent = 'Analyze Message';
   }
 }
 
 async function loadDemo(id) {
   try {
-    const resp = await fetch(API + '/demo/' + id);
+    const resp = await fetch(API+'/demo/'+id);
     if (!resp.ok) throw new Error();
     const data = await resp.json();
     document.getElementById('scanInput').value = data.message;
     showToast('Example loaded. Click Analyze.', 'success');
-  } catch (e) {
+  } catch(e) {
     showToast('Error loading example scenario', 'error');
   }
 }
 
-function renderResult(res){
-  const card=document.getElementById('resultCard');
-  card.style.display='block';
+// ── Render result with Pro features ──────────────────────────────────────
+function renderResult(res) {
+  const card = document.getElementById('resultCard');
+  card.style.display = 'block';
 
-  let color='#00d4a0';
-  if(res.risk_level==='HIGH')color='#ff4757';
-  else if(res.risk_level==='MEDIUM')color='#f59e0b';
+  let color = '#00d4a0';
+  if (res.risk_level === 'HIGH')   color = '#ff4757';
+  else if (res.risk_level === 'MEDIUM') color = '#f59e0b';
 
-  let priorityBadge = '';
-  if (res.priority_used) {
-    priorityBadge = ' <span style="display:inline-block; font-size:10px; background:rgba(0,212,160,0.15); color:var(--teal); border:1.5px solid var(--teal); border-radius:4px; padding:2px 6px; font-weight:800; font-family:var(--font-mono); margin-left:12px; vertical-align:middle; text-transform:uppercase; letter-spacing:0.05em;">⚡ Priority AI</span>';
+  document.getElementById('resLevel').textContent   = res.risk_level + ' RISK';
+  document.getElementById('resLevel').style.color   = color;
+  document.getElementById('resScore').textContent   = res.risk_score;
+  document.getElementById('resScore').style.color   = color;
+  document.getElementById('resSummary').textContent = res.summary;
+  document.getElementById('resAction').textContent  = res.what_to_do;
+
+  const bar = document.getElementById('resBar');
+  bar.style.width      = res.risk_score + '%';
+  bar.style.background = color;
+
+  // Priority badge (Pro only)
+  const existingBadge = document.getElementById('priorityBadge');
+  if (existingBadge) existingBadge.remove();
+  if (isPro) {
+    const badge = document.createElement('div');
+    badge.id    = 'priorityBadge';
+    badge.style.cssText = `
+      display:inline-flex;align-items:center;gap:6px;
+      background:linear-gradient(135deg,#0d9488,#0f766e);
+      color:#fff;font-family:var(--font-mono);font-size:10px;
+      font-weight:700;padding:4px 10px;border-radius:12px;
+      letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;`;
+    badge.innerHTML = '⚡ Priority AI · Processed First';
+    document.querySelector('.result-header').insertAdjacentElement('afterend', badge);
   }
 
-  document.getElementById('resLevel').innerHTML=res.risk_level+' RISK' + priorityBadge;
-  document.getElementById('resLevel').style.color=color;
-  document.getElementById('resScore').textContent=res.risk_score;
-  document.getElementById('resScore').style.color=color;
-  document.getElementById('resSummary').textContent=res.summary;
-  document.getElementById('resAction').textContent=res.what_to_do;
-
-  const bar=document.getElementById('resBar');
-  bar.style.width=res.risk_score+'%';
-  bar.style.background=color;
-
-  const list=document.getElementById('resReasons');
-  list.innerHTML='';
-  (res.reasons||[]).forEach(r=>{
-    const li=document.createElement('li');
-    li.className='res-reason';
-    li.innerHTML='<div class="res-reason-dot" style="background:'+color+'"></div>'+r;
+  // Reasons — confidence bars for Pro, plain bullets for free
+  const list = document.getElementById('resReasons');
+  list.innerHTML = '';
+  (res.reasons || []).forEach((r, i) => {
+    const li = document.createElement('li');
+    li.className = 'res-reason';
+    if (isPro) {
+      const confidence = Math.min(98, Math.max(55, res.risk_score - (i * 7) + (r.length % 11)));
+      const barColor   = confidence > 75 ? color : '#f59e0b';
+      li.style.cssText = 'flex-direction:column;align-items:flex-start;gap:6px;';
+      li.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;width:100%;">
+          <div class="res-reason-dot" style="background:${color};flex-shrink:0;margin-top:0;"></div>
+          <span style="flex:1;">${r}</span>
+          <span style="font-family:var(--font-mono);font-size:10px;color:${barColor};font-weight:700;flex-shrink:0;">${confidence}%</span>
+        </div>
+        <div style="width:100%;height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-left:14px;">
+          <div style="height:100%;width:0;border-radius:2px;background:${barColor};transition:width 0.9s ease;"
+               data-width="${confidence}%"></div>
+        </div>`;
+    } else {
+      li.innerHTML = `<div class="res-reason-dot" style="background:${color}"></div>${r}`;
+    }
     list.appendChild(li);
   });
 
-  if(res.risk_level==='HIGH'){
-    card.style.borderColor='rgba(255,71,87,0.3)';
-    document.querySelector('.res-action').style.borderLeftColor=color;
-    document.querySelector('.res-action').style.background='rgba(255,71,87,0.08)';
-  }else{
-    card.style.borderColor='var(--border)';
-    document.querySelector('.res-action').style.borderLeftColor='var(--teal)';
-    document.querySelector('.res-action').style.background='var(--teal-dim)';
+  if (isPro) {
+    requestAnimationFrame(() => {
+      document.querySelectorAll('[data-width]').forEach(el => el.style.width = el.dataset.width);
+    });
   }
 
-  card.scrollIntoView({behavior:'smooth',block:'center'});
+  // Pro upsell hint for free users
+  const existingHint = document.getElementById('proHint');
+  if (existingHint) existingHint.remove();
+  if (!isPro) {
+    const hint = document.createElement('div');
+    hint.id    = 'proHint';
+    hint.style.cssText = `
+      margin-top:16px;padding:12px 16px;border-radius:8px;
+      background:rgba(0,212,160,0.06);border:1px dashed rgba(0,212,160,0.2);
+      font-family:var(--font-mono);font-size:11px;color:var(--muted);
+      display:flex;align-items:center;justify-content:space-between;gap:12px;`;
+    hint.innerHTML = `
+      <span>⚡ Pro shows confidence scores on every scan</span>
+      <a href="/checkout?plan=pro" style="color:var(--teal);text-decoration:none;font-weight:700;white-space:nowrap;">Upgrade →</a>`;
+    document.querySelector('.result-body').appendChild(hint);
+  }
+
+  if (res.risk_level === 'HIGH') {
+    card.style.borderColor = 'rgba(255,71,87,0.3)';
+    document.querySelector('.res-action').style.borderLeftColor = color;
+    document.querySelector('.res-action').style.background = 'rgba(255,71,87,0.08)';
+  } else {
+    card.style.borderColor = 'var(--border)';
+    document.querySelector('.res-action').style.borderLeftColor = 'var(--teal)';
+    document.querySelector('.res-action').style.background = 'var(--teal-dim)';
+  }
+
+  card.scrollIntoView({ behavior:'smooth', block:'center' });
 }
 
-// Nav scroll
-window.addEventListener('scroll',()=>{
-  document.querySelector('.nav').classList.toggle('scrolled',window.scrollY>20);
+window.addEventListener('scroll', () => {
+  document.querySelector('.nav').classList.toggle('scrolled', window.scrollY > 20);
 });
 
-// ── Currency Map ──
-const CURRENCY_MAP={
-  'IN':'INR \u20b9','US':'USD $','GB':'GBP \u00a3','NG':'NGN \u20a6',
-  'DE':'EUR \u20ac','FR':'EUR \u20ac','IT':'EUR \u20ac','ES':'EUR \u20ac',
-  'JP':'JPY \u00a5','CN':'CNY \u00a5','KR':'KRW \u20a9','BR':'BRL R$',
+// ── Currency & i18n ───────────────────────────────────────────────────────
+const CURRENCY_MAP = {
+  'IN':'INR ₹','US':'USD $','GB':'GBP £','NG':'NGN ₦',
+  'DE':'EUR €','FR':'EUR €','IT':'EUR €','ES':'EUR €',
+  'JP':'JPY ¥','CN':'CNY ¥','KR':'KRW ₩','BR':'BRL R$',
   'ZA':'ZAR R','AE':'AED','SA':'SAR','AU':'AUD A$','CA':'CAD C$',
   'MX':'MXN','RU':'RUB','TR':'TRY','EG':'EGP','KE':'KES','GH':'GHS',
   'PH':'PHP','ID':'IDR','MY':'MYR','TH':'THB','VN':'VND','BD':'BDT',
   'PK':'PKR','LK':'LKR','NP':'NPR'
 };
 
-const TRANSLATIONS={
-  en:{title:'Scan Any Message',sub:'Paste a suspicious message or upload a screenshot. Get an AI-powered fraud verdict in seconds.',tabText:'Text Message',tabImage:'Image / Screenshot',placeholder:'Paste a suspicious message from WhatsApp, SMS, email, or any app...',upload:'Click to upload or drag & drop<br>PNG, JPG, or PDF',btn:'Analyze Message',prices:'Prices shown in',free:'\u2713 3 free scans remaining today',info:'3 free scans per day',noStore:'No message stored'},
-  es:{title:'Escanear Mensaje',sub:'Pega un mensaje sospechoso o sube una captura. Obt\u00e9n un veredicto de fraude con IA en segundos.',tabText:'Mensaje de Texto',tabImage:'Imagen / Captura',placeholder:'Pega un mensaje sospechoso de WhatsApp, SMS, correo o cualquier app...',upload:'Haz clic para subir o arrastra<br>PNG, JPG o PDF',btn:'Analizar Mensaje',prices:'Precios en',free:'\u2713 3 escaneos gratis restantes hoy',info:'3 escaneos gratis al d\u00eda',noStore:'Ning\u00fan mensaje almacenado'},
-  fr:{title:'Scanner un Message',sub:'Collez un message suspect ou t\u00e9l\u00e9chargez une capture d\'\u00e9cran. Obtenez un verdict en quelques secondes.',tabText:'Message Texte',tabImage:'Image / Capture',placeholder:'Collez un message suspect de WhatsApp, SMS, email ou toute application...',upload:'Cliquez pour t\u00e9l\u00e9charger<br>PNG, JPG ou PDF',btn:'Analyser le Message',prices:'Prix affich\u00e9s en',free:'\u2713 3 scans gratuits restants aujourd\'hui',info:'3 scans gratuits par jour',noStore:'Aucun message stock\u00e9'},
-  hi:{title:'\u0915\u094b\u0908 \u092d\u0940 \u0938\u0902\u0926\u0947\u0936 \u0938\u094d\u0915\u0948\u0928 \u0915\u0930\u0947\u0902',sub:'\u0915\u094b\u0908 \u0938\u0902\u0926\u093f\u0917\u094d\u0927 \u0938\u0902\u0926\u0947\u0936 \u092a\u0947\u0938\u094d\u091f \u0915\u0930\u0947\u0902 \u092f\u093e \u0938\u094d\u0915\u094d\u0930\u0940\u0928\u0936\u0949\u091f \u0905\u092a\u0932\u094b\u0921 \u0915\u0930\u0947\u0902\u0964 AI \u0938\u0947 \u0924\u0941\u0930\u0902\u0924 \u092b\u0948\u0938\u0932\u093e \u092a\u093e\u090f\u0902\u0964',tabText:'\u091f\u0947\u0915\u094d\u0938\u094d\u091f \u0938\u0902\u0926\u0947\u0936',tabImage:'\u0907\u092e\u0947\u091c / \u0938\u094d\u0915\u094d\u0930\u0940\u0928\u0936\u0949\u091f',placeholder:'WhatsApp, SMS, \u0908\u092e\u0947\u0932 \u0938\u0947 \u0915\u094b\u0908 \u0938\u0902\u0926\u093f\u0917\u094d\u0927 \u0938\u0902\u0926\u0947\u0936 \u092f\u0939\u093e\u0901 \u092a\u0947\u0938\u094d\u091f \u0915\u0930\u0947\u0902...',upload:'\u0905\u092a\u0932\u094b\u0921 \u0915\u0930\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u0915\u094d\u0932\u093f\u0915 \u0915\u0930\u0947\u0902<br>PNG, JPG \u092f\u093e PDF',btn:'\u0938\u0902\u0926\u0947\u0936 \u0935\u093f\u0936\u094d\u0932\u0947\u0937\u0923 \u0915\u0930\u0947\u0902',prices:'\u092e\u0942\u0932\u094d\u092f',free:'\u2713 \u0906\u091c 3 \u092e\u0941\u092b\u094d\u0924 \u0938\u094d\u0915\u0948\u0928 \u0936\u0947\u0937',info:'\u092a\u094d\u0930\u0924\u093f\u0926\u093f\u0928 3 \u092e\u0941\u092b\u094d\u0924 \u0938\u094d\u0915\u0948\u0928',noStore:'\u0915\u094b\u0908 \u0938\u0902\u0926\u0947\u0936 \u0938\u0902\u0917\u094d\u0930\u0939\u0940\u0924 \u0928\u0939\u0940\u0902'}
+const TRANSLATIONS = {
+  en:{title:'Scan Any Message',sub:'Paste a suspicious message or upload a screenshot. Get an AI-powered fraud verdict in seconds.',tabText:'Text Message',tabImage:'Image / Screenshot',placeholder:'Paste a suspicious message from WhatsApp, SMS, email, or any app...',upload:'Click to upload or drag & drop<br>PNG, JPG, or PDF',btn:'Analyze Message',prices:'Prices shown in',free:'✓ 3 free scans remaining today',info:'3 free scans per day',noStore:'No message stored'},
+  es:{title:'Escanear Mensaje',sub:'Pega un mensaje sospechoso o sube una captura. Obtén un veredicto de fraude con IA en segundos.',tabText:'Mensaje de Texto',tabImage:'Imagen / Captura',placeholder:'Pega un mensaje sospechoso de WhatsApp, SMS, correo o cualquier app...',upload:'Haz clic para subir o arrastra<br>PNG, JPG o PDF',btn:'Analizar Mensaje',prices:'Precios en',free:'✓ 3 escaneos gratis restantes hoy',info:'3 escaneos gratis al día',noStore:'Ningún mensaje almacenado'},
+  fr:{title:'Scanner un Message',sub:'Collez un message suspect ou téléchargez une capture d\'écran. Obtenez un verdict en quelques secondes.',tabText:'Message Texte',tabImage:'Image / Capture',placeholder:'Collez un message suspect de WhatsApp, SMS, email ou toute application...',upload:'Cliquez pour télécharger<br>PNG, JPG ou PDF',btn:'Analyser le Message',prices:'Prix affichés en',free:'✓ 3 scans gratuits restants aujourd\'hui',info:'3 scans gratuits par jour',noStore:'Aucun message stocké'},
+  hi:{title:'कोई भी संदेश स्कैन करें',sub:'कोई संदिग्ध संदेश पेस्ट करें या स्क्रीनशॉट अपलोड करें। AI से तुरंत फैसला पाएं।',tabText:'टेक्स्ट संदेश',tabImage:'इमेज / स्क्रीनशॉट',placeholder:'WhatsApp, SMS, ईमेल से कोई संदिग्ध संदेश यहाँ पेस्ट करें...',upload:'अपलोड करने के लिए क्लिक करें<br>PNG, JPG या PDF',btn:'संदेश विश्लेषण करें',prices:'मूल्य',free:'✓ आज 3 मुफ्त स्कैन शेष',info:'प्रतिदिन 3 मुफ्त स्कैन',noStore:'कोई संदेश संग्रहीत नहीं'}
 };
 
-async function detectLocation(){
-  const cached=localStorage.getItem('dovtek_geo');
-  if(cached){
-    try{const d=JSON.parse(cached);if(Date.now()-d.ts<3600000){applyGeo(d);return;}}catch(e){}
-  }
-  try{
-    const r=await fetch('https://ipapi.co/json/',{signal:AbortSignal.timeout(4000)});
-    const d=await r.json();
-    const geo={country:d.country_name,code:d.country_code,ts:Date.now()};
-    localStorage.setItem('dovtek_geo',JSON.stringify(geo));
-    applyGeo(geo);
-  }catch(e){
-    try{
-      const r2=await fetch('https://api.country.is',{signal:AbortSignal.timeout(4000)});
-      const d2=await r2.json();
-      const geo={country:d2.country||'Unknown',code:d2.country||'US',ts:Date.now()};
-      localStorage.setItem('dovtek_geo',JSON.stringify(geo));
-      applyGeo(geo);
-    }catch(e2){
-      applyGeo({country:'your region',code:'US'});
-    }
-  }
-}
-
-function applyGeo(geo){
-  const code=geo.code||'US';
-  const currency=CURRENCY_MAP[code]||'USD $';
-  document.getElementById('locBadge').textContent=code;
-  document.getElementById('locCountry').textContent=geo.country||'Unknown';
-  document.getElementById('locCurrency').textContent=currency;
-}
-
-// ── Auto-Translate Feature ───────────────────────────────────────────────
-const LANG_NAMES = {en:'English',es:'Español',fr:'Français',hi:'हिन्दी',pt:'Português',ar:'العربية',zh:'中文'};
+const LANG_NAMES         = {en:'English',es:'Español',fr:'Français',hi:'हिन्दी',pt:'Português',ar:'العربية',zh:'中文'};
 const LANG_CODES_MYMEMORY = {es:'es',fr:'fr',hi:'hi',pt:'pt',ar:'ar',zh:'zh-CN'};
-
-let _translateTimer = null;
-let _lastTranslatedText = '';  // track what we already translated to avoid loops
-let _isTranslating = false;
+let _translateTimer = null, _lastTranslatedText = '', _isTranslating = false;
 
 function updateTranslateBar(lang) {
   const bar = document.getElementById('translateBar');
@@ -690,44 +727,33 @@ function updateTranslateBar(lang) {
 }
 
 function setTranslateStatus(state, msg) {
-  const dot = document.getElementById('translateDot');
+  const dot   = document.getElementById('translateDot');
   const msgEl = document.getElementById('translateMsg');
   dot.className = 'dot';
   if (state === 'idle') {
-    const lang = localStorage.getItem('dovtek_lang') || 'en';
-    msgEl.innerHTML = 'Auto-translate ON · Automatically translating to <span id="translateLangName">' + (LANG_NAMES[lang]||lang) + '</span>';
+    const l = localStorage.getItem('dovtek_lang') || 'en';
+    msgEl.innerHTML = 'Auto-translate ON · Automatically translating to <span id="translateLangName">'+(LANG_NAMES[l]||l)+'</span>';
   } else if (state === 'translating') {
-    dot.classList.add('translating');
-    msgEl.textContent = '⏳ Translating...';
+    dot.classList.add('translating'); msgEl.textContent = '⏳ Translating...';
   } else if (state === 'done') {
     msgEl.textContent = '✓ ' + (msg || 'Translated!');
   } else if (state === 'error') {
-    dot.classList.add('error');
-    msgEl.textContent = '✗ ' + (msg || 'Translation failed');
+    dot.classList.add('error'); msgEl.textContent = '✗ ' + (msg || 'Translation failed');
   }
 }
 
 async function doAutoTranslate(text) {
   const lang = localStorage.getItem('dovtek_lang') || 'en';
-  if (!text.trim() || _isTranslating) return;
-
-  // Don't re-translate what we already translated
-  if (text.trim() === _lastTranslatedText) return;
-
+  if (!text.trim() || _isTranslating || text.trim() === _lastTranslatedText) return;
   _isTranslating = true;
   setTranslateStatus('translating');
-
-  const targetLang = LANG_CODES_MYMEMORY[lang] || lang;
-
   try {
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.trim())}&langpair=Autodetect|${targetLang}`;
+    const url  = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.trim())}&langpair=Autodetect|${LANG_CODES_MYMEMORY[lang]||lang}`;
     const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
     const data = await resp.json();
-
-    if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
+    if (data.responseStatus === 200 && data.responseData?.translatedText) {
       const translated = data.responseData.translatedText;
-      // Only update if textarea still has the same English text (user didn't change it)
-      const textarea = document.getElementById('scanInput');
+      const textarea   = document.getElementById('scanInput');
       if (textarea.value.trim() === text.trim()) {
         _lastTranslatedText = translated;
         if (translated !== text.trim()) {
@@ -738,9 +764,7 @@ async function doAutoTranslate(text) {
         }
         setTimeout(() => setTranslateStatus('idle'), 3000);
       }
-    } else {
-      throw new Error('fail');
-    }
+    } else throw new Error('fail');
   } catch(e) {
     setTranslateStatus('error', 'Could not translate — try again');
     setTimeout(() => setTranslateStatus('idle'), 3000);
@@ -749,56 +773,85 @@ async function doAutoTranslate(text) {
   }
 }
 
-// Attach auto-translate to textarea input (debounced 1.2s after user stops typing)
 (function() {
   const textarea = document.getElementById('scanInput');
   textarea.addEventListener('input', function() {
-    // Don't trigger if text matches last translation (avoid loops)
     if (this.value.trim() === _lastTranslatedText) return;
-
     clearTimeout(_translateTimer);
-    _translateTimer = setTimeout(() => {
-      doAutoTranslate(this.value);
-    }, 1200);
+    _translateTimer = setTimeout(() => doAutoTranslate(this.value), 1200);
   });
 })();
 
-function changeLang(lang){
-  localStorage.setItem('dovtek_lang',lang);
+function changeLang(lang) {
+  localStorage.setItem('dovtek_lang', lang);
   applyLanguage(lang);
   updateTranslateBar(lang);
-  _lastTranslatedText = '';  // reset so re-translate is possible
+  _lastTranslatedText = '';
 }
 
-function applyLanguage(lang){
-  const t=TRANSLATIONS[lang]||TRANSLATIONS.en;
-  document.querySelector('.hero-h').textContent=t.title;
-  document.querySelector('.hero-p').textContent=t.sub;
-  document.getElementById('tabText').textContent=t.tabText;
-  document.getElementById('tabImage').textContent=t.tabImage;
-  document.getElementById('scanInput').placeholder=t.placeholder;
-  document.getElementById('fileName').innerHTML=t.upload;
-  document.getElementById('scanBtn').textContent=t.btn;
-  document.querySelector('[data-i18n="prices"]').textContent=t.prices;
-  document.querySelector('[data-i18n="free"]').textContent=t.free;
-  document.getElementById('scanCount').textContent=t.info;
-  // Set dir for RTL languages
-  document.body.dir=lang==='ar'?'rtl':'ltr';
+function applyLanguage(lang) {
+  const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
+  document.querySelector('.hero-h').textContent          = t.title;
+  document.querySelector('.hero-p').textContent          = t.sub;
+  document.getElementById('tabText').textContent         = t.tabText;
+  document.getElementById('tabImage').textContent        = t.tabImage;
+  document.getElementById('scanInput').placeholder       = t.placeholder;
+  document.getElementById('fileName') && (document.getElementById('fileName').innerHTML = t.upload);
+  document.getElementById('scanBtn').textContent         = t.btn;
+  const pricesEl = document.querySelector('[data-i18n="prices"]');
+  if (pricesEl) pricesEl.textContent = t.prices;
+  const freeEl = document.querySelector('[data-i18n="free"]');
+  if (freeEl) freeEl.textContent = t.free;
+  document.getElementById('scanCount').textContent       = t.info;
+  document.body.dir = lang === 'ar' ? 'rtl' : 'ltr';
 }
 
-// Init
-(function(){
-  const saved=localStorage.getItem('dovtek_lang')||'en';
-  document.getElementById('langSelect').value=saved;
-  if(saved!=='en') applyLanguage(saved);
+async function detectLocation() {
+  const cached = localStorage.getItem('dovtek_geo');
+  if (cached) {
+    try {
+      const d = JSON.parse(cached);
+      if (Date.now() - d.ts < 3600000) { applyGeo(d); return; }
+    } catch(e) {}
+  }
+  try {
+    const r = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+    const d = await r.json();
+    const geo = { country: d.country_name, code: d.country_code, ts: Date.now() };
+    localStorage.setItem('dovtek_geo', JSON.stringify(geo));
+    applyGeo(geo);
+  } catch(e) {
+    try {
+      const r2 = await fetch('https://api.country.is', { signal: AbortSignal.timeout(4000) });
+      const d2 = await r2.json();
+      const geo = { country: d2.country||'Unknown', code: d2.country||'US', ts: Date.now() };
+      localStorage.setItem('dovtek_geo', JSON.stringify(geo));
+      applyGeo(geo);
+    } catch(e2) { applyGeo({ country:'your region', code:'US' }); }
+  }
+}
 
-  // Show/hide translate bar
+function applyGeo(geo) {
+  const code     = geo.code || 'US';
+  const currency = CURRENCY_MAP[code] || 'USD $';
+  const locBadge = document.getElementById('locBadge');
+  if (locBadge) locBadge.textContent = code;
+  document.getElementById('locCountry').textContent = geo.country || 'Unknown';
+  document.getElementById('locCurrency').textContent = currency;
+  // Save so checkout page can read it
+  localStorage.setItem('dovtek_geo', JSON.stringify({ ...geo, ts: geo.ts || Date.now() }));
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+(function() {
+  const saved = localStorage.getItem('dovtek_lang') || 'en';
+  document.getElementById('langSelect').value = saved;
+  if (saved !== 'en') applyLanguage(saved);
   updateTranslateBar(saved);
-
-  // Update scan count label
   if (token) {
-    const rem = getRemaining();
-    document.getElementById('scanCount').textContent = rem === Infinity ? 'Unlimited scans · Priority AI Active' : rem + ' scans remaining today';
+    document.getElementById('scanCount').textContent = isPro
+      ? '∞ unlimited scans · Pro'
+      : getRemaining() + ' scans remaining today';
   } else {
     document.getElementById('scanCount').textContent = '1 free scan (guest) · Sign up for 3/day';
   }

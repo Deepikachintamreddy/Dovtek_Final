@@ -12,6 +12,7 @@ from database import engine
 import db_models
 from routers import auth_router, scan_router
 from routers import audit_router, webhook_router, community_router
+from routers.billings import router as billing_router
 from prompts import DEMO_SCENARIOS
 from enterprise.api_key_manager import validate_key
 
@@ -75,6 +76,7 @@ app.include_router(scan_router.router)
 app.include_router(audit_router.router)
 app.include_router(webhook_router.router)
 app.include_router(community_router.router)
+app.include_router(billing_router)
 
 
 # ── Existing Endpoints (unchanged) ───────────────────────────────────────────

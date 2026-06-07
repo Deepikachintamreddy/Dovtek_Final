@@ -93,7 +93,7 @@
 
   <!-- Extension Integration Widget -->
   <div class="extension-widget" id="extWidget" style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);padding:18px 20px;margin-bottom:20px;display:none;flex-direction:column;gap:8px;">
-    <div style="font-weight:700;font-size:14px;color:var(--white);display:flex;align-items:center;gap:8px;">🛡️ Shield Plus Chrome Extension</div>
+    <div style="font-weight:700;font-size:14px;color:var(--white);display:flex;align-items:center;gap:8px;">🛡️ ShieldIQ Chrome Extension</div>
     <div style="font-size:12px;color:var(--muted)">Use the extension for automatic background protection on WhatsApp and Gmail. Paste this auth token into the extension popup:</div>
     <div style="display:flex;gap:8px;align-items:center;">
       <input type="password" id="extTokenVal" readonly style="flex:1;background:var(--darker);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--warm);padding:8px 12px;font-family:var(--font-mono);font-size:11px;" value="">
@@ -175,9 +175,68 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const API = '';
+const API   = '';
 const token = localStorage.getItem('dovtek_token');
 if (!token) { window.location.href = '/'; }
+
+const userObj  = JSON.parse(localStorage.getItem('dovtek_user') || '{}');
+const userPlan = userObj.plan || 'free';
+const isPro    = userPlan === 'pro' || userPlan === 'plus';
+
+// ── Upgrade banner (Paystack callback) ───────────────────────────────────
+const urlParams = new URLSearchParams(location.search);
+if (urlParams.get('upgraded') === 'true') {
+  const plan  = urlParams.get('plan') || 'pro';
+  const ref   = sessionStorage.getItem('paystack_ref');
+
+  if (ref) {
+    // Live mode — verify before showing banner
+    sessionStorage.removeItem('paystack_ref');
+    sessionStorage.removeItem('paystack_plan');
+    fetch('/api/billing/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ reference: ref, plan })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        const updated = { ...userObj, plan: data.plan };
+        localStorage.setItem('dovtek_user', JSON.stringify(updated));
+        showUpgradeBanner(data.plan);
+        setTimeout(() => location.reload(), 1500);
+      }
+    })
+    .catch(() => showUpgradeBanner(plan));
+  } else {
+    // Dummy mode — plan already written
+    showUpgradeBanner(plan);
+  }
+  history.replaceState({}, '', '/dashboard');
+}
+
+function showUpgradeBanner(plan) {
+  const label  = plan === 'plus' ? 'Shield Plus' : 'ShieldIQ Pro';
+  const banner = document.createElement('div');
+  banner.style.cssText = `
+    background:linear-gradient(135deg,#0d9488,#0f766e);
+    border-radius:12px;padding:16px 20px;margin-bottom:24px;
+    display:flex;align-items:center;justify-content:space-between;`;
+  banner.innerHTML = `
+    <div>
+      <div style="font-weight:800;color:#fff;font-size:15px;">🎉 Welcome to ${label}!</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:4px;">
+        Your plan is active. All Pro features are unlocked.
+      </div>
+    </div>
+    <button onclick="this.parentElement.remove()"
+      style="background:none;border:none;color:rgba(255,255,255,0.6);
+             cursor:pointer;font-size:20px;line-height:1;">×</button>`;
+  document.querySelector('.container').prepend(banner);
+}
 
 // ── Translations ──────────────────────────────────────────────────────────
 const DASH_T = {
@@ -188,102 +247,144 @@ const DASH_T = {
 };
 
 const lang = localStorage.getItem('dovtek_lang') || 'en';
-const T = DASH_T[lang] || DASH_T.en;
+const T    = DASH_T[lang] || DASH_T.en;
 document.body.dir = lang === 'ar' ? 'rtl' : 'ltr';
 
-// Initialize language dropdown
 const langSel = document.getElementById('langSelect');
-if(langSel) langSel.value = lang;
+if (langSel) langSel.value = lang;
 
-function changeLang(l) {
-  localStorage.setItem('dovtek_lang', l);
-  window.location.reload();
-}
+function changeLang(l) { localStorage.setItem('dovtek_lang', l); location.reload(); }
 
-// Apply translations
-document.getElementById('navHome').textContent = T.navHome;
-document.getElementById('navScan').textContent = T.navScan;
-document.getElementById('navDashboard').textContent = T.navDash;
-document.getElementById('navLogout').textContent = T.logout;
-document.getElementById('mNavHome').textContent = T.navHome;
-document.getElementById('mNavScan').textContent = T.navScan;
-document.getElementById('mNavDashboard').textContent = T.navDash;
-document.getElementById('mNavLogout').textContent = T.logout;
-document.getElementById('quotaLabel').textContent = T.quotaLabel;
+document.getElementById('navHome').textContent        = T.navHome;
+document.getElementById('navScan').textContent        = T.navScan;
+document.getElementById('navDashboard').textContent   = T.navDash;
+document.getElementById('navLogout').textContent      = T.logout;
+document.getElementById('mNavHome').textContent       = T.navHome;
+document.getElementById('mNavScan').textContent       = T.navScan;
+document.getElementById('mNavDashboard').textContent  = T.navDash;
+document.getElementById('mNavLogout').textContent     = T.logout;
+document.getElementById('quotaLabel').textContent     = T.quotaLabel;
 document.getElementById('quotaUpgradeBtn').textContent = T.upgradeBtn;
-document.getElementById('labelTotal').textContent = T.total;
-document.getElementById('labelHigh').textContent = T.high;
-document.getElementById('labelSafe').textContent = T.safe;
-document.getElementById('histLabel').textContent = T.hist;
-document.getElementById('newScanBtn').textContent = T.newScan;
-document.getElementById('emptyText').textContent = T.emptyText;
-document.getElementById('emptyScanBtn').textContent = T.emptyScan;
-document.getElementById('loadingState').textContent = T.loading;
-document.getElementById('upgTitle').textContent = T.upgTitle;
-document.getElementById('upgSub').textContent = T.upgSub;
-document.getElementById('upgDismiss').textContent = T.upgDismiss;
+document.getElementById('labelTotal').textContent     = T.total;
+document.getElementById('labelHigh').textContent      = T.high;
+document.getElementById('labelSafe').textContent      = T.safe;
+document.getElementById('histLabel').textContent      = T.hist;
+document.getElementById('newScanBtn').textContent     = T.newScan;
+document.getElementById('emptyText').textContent      = T.emptyText;
+document.getElementById('emptyScanBtn').textContent   = T.emptyScan;
+document.getElementById('loadingState').textContent   = T.loading;
+document.getElementById('upgTitle').textContent       = T.upgTitle;
+document.getElementById('upgSub').textContent         = T.upgSub;
+document.getElementById('upgDismiss').textContent     = T.upgDismiss;
 
 // ── Scan Quota ────────────────────────────────────────────────────────────
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY    = new Date().toISOString().slice(0, 10);
 const SCAN_KEY = 'dovtek_scan_user_' + TODAY;
 const USER_LIMIT = 3;
 
 function getScansUsed() { return parseInt(localStorage.getItem(SCAN_KEY) || '0', 10); }
 function getRemaining() { return Math.max(0, USER_LIMIT - getScansUsed()); }
 
-function renderQuota(userPlan) {
-  const used = getScansUsed();
-  const rem = getRemaining();
-  const pct = Math.round((rem / USER_LIMIT) * 100);
-
-  const fill = document.getElementById('quotaFill');
-  const text = document.getElementById('quotaText');
+function renderQuota(plan) {
+  const wrap       = document.getElementById('quotaBarWrap');
+  const fill       = document.getElementById('quotaFill');
+  const text       = document.getElementById('quotaText');
   const upgradeBtn = document.getElementById('quotaUpgradeBtn');
 
-  if (userPlan && userPlan !== 'free') {
-    fill.style.width = '100%';
-    fill.className = 'quota-fill';
-    text.className = 'quota-text ok';
-    text.textContent = 'Unlimited (Active: ' + userPlan.toUpperCase() + ')';
-    upgradeBtn.style.display = 'none';
+  if (plan && plan !== 'free') {
+    wrap.style.background  = 'linear-gradient(135deg,rgba(13,148,136,0.15),rgba(15,118,110,0.1))';
+    wrap.style.borderColor = 'rgba(0,212,160,0.3)';
+    wrap.innerHTML = `
+      <span style="font-family:var(--font-mono);font-size:11px;color:var(--teal);
+                   letter-spacing:0.08em;text-transform:uppercase;">⚡ ${plan === 'plus' ? 'Shield Plus' : 'Pro'}</span>
+      <span style="font-family:var(--font-mono);font-size:13px;font-weight:800;
+                   color:#fff;margin-left:8px;">∞ Unlimited Scans</span>
+      <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);
+                   margin-left:auto;">No daily limit</span>`;
     return;
   }
 
-  fill.style.width = pct + '%';
-  fill.className = 'quota-fill' + (rem === 0 ? ' empty' : rem === 1 ? ' warn' : '');
-  text.className = 'quota-text' + (rem === 0 ? ' empty' : rem === 1 ? ' warn' : ' ok');
-
-  if (rem === 0) {
-    text.textContent = T.quotaEmpty;
-    upgradeBtn.style.display = 'inline-block';
-  } else {
-    text.textContent = T.quotaLeft.replace('{n}', rem);
-    upgradeBtn.style.display = 'none';
-  }
+  const rem = getRemaining();
+  const pct = Math.round((rem / USER_LIMIT) * 100);
+  fill.style.width  = pct + '%';
+  fill.className    = 'quota-fill' + (rem === 0 ? ' empty' : rem === 1 ? ' warn' : '');
+  text.className    = 'quota-text' + (rem === 0 ? ' empty' : rem === 1 ? ' warn' : ' ok');
+  text.textContent  = rem === 0 ? T.quotaEmpty : T.quotaLeft.replace('{n}', rem);
+  upgradeBtn.style.display = rem === 0 ? 'inline-block' : 'none';
 }
 
-function exportHistory() {
-  try {
-    const user = JSON.parse(localStorage.getItem('dovtek_user') || '{}');
-    if (!user.plan || user.plan === 'free') {
-      document.getElementById('upgradeOverlay').classList.add('on');
-      return;
-    }
-    window.open(API + '/scans/export?format=csv&token=' + token, '_blank');
-  } catch (e) {
-    showToast('Failed to export history: ' + e.message);
+// ── Upgrade modal — disable owned plans ──────────────────────────────────
+const PLAN_RANK = { free: 0, pro: 1, plus: 2 };
+if (PLAN_RANK[userPlan] >= 1) {
+  const proLink = document.querySelector('.upgrade-plan.pro');
+  if (proLink) {
+    proLink.style.opacity = '0.4';
+    proLink.style.pointerEvents = 'none';
+    proLink.querySelector('.upgrade-plan-name').innerHTML =
+      'SHIELD IQ Pro <span style="font-size:10px;color:#94a3b8;font-weight:400">— Current plan</span>';
   }
+}
+if (PLAN_RANK[userPlan] >= 2) {
+  const plusLink = document.querySelector('.upgrade-plan.plus');
+  if (plusLink) {
+    plusLink.style.opacity = '0.4';
+    plusLink.style.pointerEvents = 'none';
+  }
+  document.getElementById('upgTitle').textContent = "You're fully protected";
+  document.getElementById('upgSub').textContent   =
+    "You're on Shield Plus — our highest tier. You have full access to everything.";
 }
 
 // ── Toast & Auth ──────────────────────────────────────────────────────────
-function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
 function logout() {
   localStorage.removeItem('dovtek_token');
   localStorage.removeItem('dovtek_user');
   Object.keys(localStorage).forEach(k => {
     if (k.startsWith('dovtek_scan_')) localStorage.removeItem(k);
   });
-  window.location.href='/';
+  location.href = '/';
+}
+
+function toggleTokenVisibility() {
+  const input = document.getElementById('extTokenVal');
+  input.type  = input.type === 'password' ? 'text' : 'password';
+}
+function copyExtToken() {
+  const val = document.getElementById('extTokenVal').value;
+  if (!val) return;
+  navigator.clipboard.writeText(val);
+  showToast('Copied token to clipboard!');
+}
+
+// ── CSV Export ────────────────────────────────────────────────────────────
+let _allScans = [];
+function exportHistory() {
+  if (!isPro) { document.getElementById('upgradeOverlay').classList.add('on'); return; }
+  if (!_allScans.length) { showToast('No scans to export'); return; }
+
+  const headers = ['Date', 'Risk Level', 'Score', 'Summary', 'Action'];
+  const rows    = _allScans.map(s => [
+    new Date(s.scanned_at).toLocaleString(),
+    s.risk_level,
+    s.risk_score,
+    '"' + (s.summary || '').replace(/"/g, '""') + '"',
+    '"' + (s.what_to_do || '').replace(/"/g, '""') + '"',
+  ]);
+
+  const csv  = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `shieldiq-history-${TODAY}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── Dashboard Load ────────────────────────────────────────────────────────
@@ -293,87 +394,129 @@ async function loadDashboard() {
     const userResp = await fetch(API + '/auth/me', { headers });
     if (!userResp.ok) { logout(); return; }
     const user = await userResp.json();
-    localStorage.setItem('dovtek_user', JSON.stringify(user));
+
+    // Sync plan from server
+    if (user.plan && user.plan !== userPlan) {
+      const updated = { ...userObj, plan: user.plan };
+      localStorage.setItem('dovtek_user', JSON.stringify(updated));
+      location.reload();
+      return;
+    }
+
     document.getElementById('userName').textContent = user.full_name || user.email.split('@')[0];
 
-    // Show/hide extension widget based on plan (only available for Shield Plus or Enterprise subscribers)
+    // Pro badge
+    if (isPro) {
+      const hello = document.getElementById('dashHello');
+      const badge = document.createElement('span');
+      badge.style.cssText = `
+        font-size:11px;font-family:var(--font-mono);font-weight:700;
+        background:linear-gradient(135deg,#0d9488,#0f766e);color:#fff;
+        padding:3px 10px;border-radius:10px;margin-left:10px;
+        vertical-align:middle;letter-spacing:0.06em;`;
+      badge.textContent = user.plan === 'plus' ? '⚡ SHIELD PLUS' : '⚡ PRO';
+      hello.appendChild(badge);
+    }
+
+    // Extension widget — Plus only
     const extWidget = document.getElementById('extWidget');
     if (extWidget) {
-      if (user.plan === 'plus' || user.plan === 'enterprise') {
-        extWidget.style.display = 'flex';
+      const hasExtension = user.plan === 'pro' || user.plan === 'plus';
+      extWidget.style.display = hasExtension ? 'flex' : 'none';
+      if (hasExtension) {
         document.getElementById('extTokenVal').value = token || '';
-      } else {
-        extWidget.style.display = 'none';
-        document.getElementById('extTokenVal').value = '';
       }
     }
 
+    // Show export button for Pro
     const exportBtn = document.getElementById('exportBtn');
-    if (exportBtn) exportBtn.style.display = 'inline-flex';
+    if (exportBtn && isPro) exportBtn.style.display = 'inline-flex';
 
-    const histResp = await fetch(API + '/scans/history?page_size=50', { headers });
+    const histResp = await fetch(API + '/scans/history?page_size=100', { headers });
     if (!histResp.ok) throw new Error('Failed to load history');
     const hist = await histResp.json();
 
     document.getElementById('loadingState').style.display = 'none';
-    const scans = hist.scans || [];
-    document.getElementById('totalScans').textContent = hist.total;
-    document.getElementById('highRisk').textContent = scans.filter(s => s.risk_level === 'HIGH').length;
-    document.getElementById('safeCount').textContent = scans.filter(s => s.risk_level === 'LOW').length;
-    document.getElementById('dashSub').textContent = T.sub.replace('{n}', hist.total);
+    _allScans = hist.scans || [];
 
-    const todayCount = scans.filter(s => s.scanned_at && s.scanned_at.slice(0, 10) === TODAY).length;
+    document.getElementById('totalScans').textContent = hist.total;
+    document.getElementById('highRisk').textContent   = _allScans.filter(s => s.risk_level === 'HIGH').length;
+    document.getElementById('safeCount').textContent  = _allScans.filter(s => s.risk_level === 'LOW').length;
+    document.getElementById('dashSub').textContent    = T.sub.replace('{n}', hist.total);
+
+    const todayCount = _allScans.filter(s => s.scanned_at && s.scanned_at.slice(0,10) === TODAY).length;
     localStorage.setItem(SCAN_KEY, todayCount);
     renderQuota(user.plan);
 
-    if (scans.length === 0) {
+    if (_allScans.length === 0) {
       document.getElementById('emptyState').style.display = 'block';
       return;
     }
 
+    // Slice for free users
+    const visibleScans = isPro ? _allScans : _allScans.slice(0, 5);
+    const hiddenCount  = _allScans.length - visibleScans.length;
+
     const list = document.getElementById('scanList');
     list.innerHTML = '';
-    scans.forEach(s => {
-      const cls = s.risk_level === 'HIGH' ? 'h' : s.risk_level === 'MEDIUM' ? 'm' : 'l';
-      const date = new Date(s.scanned_at).toLocaleDateString(lang === 'ar' ? 'ar' : lang === 'zh' ? 'zh-CN' : 'en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+
+    visibleScans.forEach(s => {
+      const cls  = s.risk_level === 'HIGH' ? 'h' : s.risk_level === 'MEDIUM' ? 'm' : 'l';
+      const date = new Date(s.scanned_at).toLocaleDateString('en-US', {
+        month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
+      });
       list.innerHTML += `
         <div class="scan-row">
           <div class="sdot ${cls}"></div>
           <div class="scan-info">
             <div class="scan-band ${cls}">${s.risk_level} Risk</div>
-            <div class="scan-msg">${s.summary || s.message.substring(0, 80)}</div>
+            <div class="scan-msg">${s.summary || (s.message || '').substring(0, 80)}</div>
             <div class="scan-meta">${date}</div>
           </div>
           <div class="scan-score ${cls}">${s.risk_score}</div>
         </div>`;
     });
+
+    // Locked row for free users
+    if (!isPro && hiddenCount > 0) {
+      const lockRow = document.createElement('div');
+      lockRow.style.cssText = `
+        display:flex;align-items:center;justify-content:space-between;
+        padding:18px 20px;margin-top:4px;
+        background:rgba(0,0,0,0.3);border:1px dashed rgba(255,255,255,0.08);
+        border-radius:var(--radius-sm);`;
+      lockRow.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:18px;">🔒</span>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--white);margin-bottom:2px;">
+              ${hiddenCount} older scan${hiddenCount === 1 ? '' : 's'} hidden
+            </div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">
+              Full history available on Pro
+            </div>
+          </div>
+        </div>
+        <a href="/checkout?plan=pro"
+          style="font-family:var(--font-mono);font-size:11px;font-weight:700;
+                 color:#000;background:var(--teal);padding:7px 14px;
+                 border-radius:6px;text-decoration:none;white-space:nowrap;">
+          Unlock History →
+        </a>`;
+      list.appendChild(lockRow);
+    }
+
   } catch(e) {
     document.getElementById('loadingState').textContent = T.loadFail + ' ' + e.message;
     showToast(e.message);
   }
 }
 
-// Token is populated asynchronously in loadDashboard() after verifying subscription tier
-
-function toggleTokenVisibility() {
-  const input = document.getElementById('extTokenVal');
-  if (input.type === 'password') {
-    input.type = 'text';
-  } else {
-    input.type = 'password';
-  }
-}
-
-function copyExtToken() {
-  const input = document.getElementById('extTokenVal');
-  if (!input.value) return;
-  navigator.clipboard.writeText(input.value);
-  showToast('Copied token to clipboard!');
-}
-
-renderQuota();
+renderQuota(userPlan);
 loadDashboard();
-window.addEventListener('scroll', () => { document.querySelector('.nav').classList.toggle('scrolled', window.scrollY > 20); });
+window.addEventListener('scroll', () => {
+  document.querySelector('.nav').classList.toggle('scrolled', window.scrollY > 20);
+});
 </script>
 </body>
 </html>
