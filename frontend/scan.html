@@ -300,8 +300,8 @@ const SCAN_STORAGE_KEY = token
 
 // Read tier — set by checkout mock or real webhook
 const userObj  = JSON.parse(localStorage.getItem('dovtek_user') || '{}');
-const userTier = (userObj.tier || localStorage.getItem('dovtek_tier') || 'free');
-const isPro    = userTier === 'pro' || userTier === 'shield_plus';
+const userPlan = userObj.plan || 'free';
+const isPro    = userPlan === 'pro' || userPlan === 'plus';
 
 function getScanCount()  { return parseInt(localStorage.getItem(SCAN_STORAGE_KEY) || '0', 10); }
 function getLimit()      { return isPro ? Infinity : (token ? USER_LIMIT : GUEST_LIMIT); }
@@ -346,11 +346,6 @@ function incrementScanCount() {
   updateRemainingDisplay();
 }
 
-function incrementScanCount() {
-  const current = getScanCount();
-  localStorage.setItem(SCAN_STORAGE_KEY, current + 1);
-  updateRemainingDisplay();
-}
 
 // Auth state
 (function initAuth(){

@@ -1,0 +1,4 @@
+{"endpoint": "/checkout", "method": "GET", "status_code": 200, "latency_ms": 7, "client_ip": "127.0.0.1", "timestamp": "2026-06-07T10:29:03.438861+00:00"}
+{"endpoint": "/", "method": "GET", "status_code": 200, "latency_ms": 6, "client_ip": "127.0.0.1", "timestamp": "2026-06-07T10:29:05.145483+00:00"}
+{"endpoint": "/", "method": "GET", "status_code": 200, "latency_ms": 9, "client_ip": "127.0.0.1", "timestamp": "2026-06-07T10:29:06.473402+00:00"}
+{"endpoint": "/", "method": "GET", "status_code": 200, "latency_ms": 3, "client_ip": "127.0.0.1", "timestamp": "2026-06-07T10:29:08.018364+00:00"}
